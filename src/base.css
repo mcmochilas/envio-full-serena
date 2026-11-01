@@ -49,7 +49,7 @@ select.inp{height:40px;font-size:14px;padding:0 10px;border-radius:10px}
 .badge{font-size:12px;font-weight:700;background:var(--gold);color:var(--ink);border-radius:999px;padding:2px 8px}
 .navfoot{margin-top:auto;display:flex;flex-direction:column;gap:10px}
 .navlink{border:1px solid #3C6E86;background:transparent;color:#F7F4EF;border-radius:10px;min-height:42px;font-size:13px;font-weight:700}
-.ad main{flex:999 1 560px;min-width:0;padding:32px 32px 48px;display:flex;flex-direction:column;gap:20px;max-width:1240px}
+.ad main{flex:999 1 560px;min-width:0;padding:32px 32px 48px;display:flex;flex-direction:column;gap:20px}
 @media (max-width:640px){.ad main{padding:20px 14px 40px}}
 .hdr{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between}
 .hdr h1{font-size:28px;letter-spacing:-.02em}
@@ -75,7 +75,7 @@ select.inp{height:40px;font-size:14px;padding:0 10px;border-radius:10px}
 .xtop small{font-size:12px;color:#B7CAD4;border-left:1px solid #3C6E86;padding-left:12px;line-height:1.25}
 .xtop .sp{flex:1}
 .xbtn{height:38px;border:1px solid #3C6E86;background:transparent;color:#F7F4EF;border-radius:10px;padding:0 12px;font-size:13px;font-weight:700}
-.xbody{flex:1;width:100%;max-width:1120px;margin:0 auto;padding:24px 20px 48px;display:flex;flex-direction:column;gap:18px}
+.xbody{flex:1;width:100%;margin:0;padding:24px 20px 48px;display:flex;flex-direction:column;gap:18px}
 .ecard{background:var(--surface);border-radius:18px;padding:18px 20px;display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center}
 .ecard h2{font-size:20px}
 .bar{height:8px;background:var(--line2);border-radius:999px;overflow:hidden;grid-column:1/-1}
