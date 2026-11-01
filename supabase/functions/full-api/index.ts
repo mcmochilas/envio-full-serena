@@ -39,7 +39,8 @@ const toque = (id: string) => db.from("full_envios").update({ updated_at: new Da
 async function rev() {
   const a = await q(db.from("full_envios").select("updated_at").order("updated_at", { ascending: false }).limit(1));
   const b = await q(db.from("full_vinc").select("updated_at").order("updated_at", { ascending: false }).limit(1));
-  return `${a[0]?.updated_at || ""}|${b[0]?.updated_at || ""}`;
+  const { count } = await db.from("full_envios").select("id", { count: "exact", head: true });
+  return `${a[0]?.updated_at || ""}|${b[0]?.updated_at || ""}|${count ?? ""}`;
 }
 
 async function estado(me: Me, since?: string) {
@@ -133,8 +134,8 @@ Deno.serve(async (req) => {
       case "excluir": {
         must(gestor && !me.qrEnvio, "Só o gestor exclui envios.");
         const e = await q(db.from("full_envios").select("status").eq("id", b.id).maybeSingle());
-        must(e && e.status === "rascunho", "Só dá para excluir envio em rascunho.", 400);
-        await q(db.from("full_envios").delete().eq("id", b.id)); await toque(b.id); return out({ ok: true });
+        must(e, "Envio não encontrado.", 404);
+        await q(db.from("full_envios").delete().eq("id", b.id)); return out({ ok: true });
       }
       case "addpre": case "rmpre": {
         must(gestor && !me.qrEnvio, "Só o gestor altera a pré-venda.");

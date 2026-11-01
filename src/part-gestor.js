@@ -27,12 +27,17 @@ function pager(key,total,PG){ const pages=Math.max(1,Math.ceil(total/PG)); DB.pg
     <button class="btn btn-sm" data-act="pg" data-k="${key}" data-p="${p-1}" ${p<=1?"disabled":""}>‹ Anterior</button>
     ${nums.map(n=>n==="…"?`<span class="muted">…</span>`:`<button class="btn btn-sm ${n===p?"btn-dark":""}" data-act="pg" data-k="${key}" data-p="${n}" aria-current="${n===p?"page":"false"}">${n}</button>`).join("")}
     <button class="btn btn-sm" data-act="pg" data-k="${key}" data-p="${p+1}" ${p>=pages?"disabled":""}>Próxima ›</button></div></div>`}; }
+const XSVG=`<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+function delBtn(e){ const pend=DB.delPend&&DB.delPend.id===e.id&&Date.now()-DB.delPend.t<6000;
+  const aviso=e.status==="rascunho"?"":e.status==="liberado"?" A separação e as etiquetas já registradas serão perdidas.":" O histórico deste envio será apagado.";
+  return pend?`<button class="xdel on" data-act="delenv" data-id="${e.id}" title="Confirmar exclusão do envio #${e.id}.${aviso}">${XSVG}<span>Excluir?</span></button>`
+    :`<button class="xdel" data-act="delenv" data-id="${e.id}" title="Excluir envio #${e.id}" aria-label="Excluir envio #${e.id}">${XSVG}</button>`; }
 function gEnviosList(){
   const F=DB.f||(DB.f={per:"todos",q:""}); const [a,b]=periodo(); const q=norm(F.q).trim();
   const lst=DB.envios.filter(e=>(e.criado||0)>=a&&(e.criado||0)<=b).map(e=>({e,m:achou(e,q)})).filter(x=>x.m!==null).sort((x,y)=>(y.e.criado||0)-(x.e.criado||0));
   const P=pager("envios",lst.length,10);
-  return `<div class="tbox"><table class="t"><thead><tr><th>Envio</th><th>Criado</th><th>Pré-vendas</th><th class="r">Anúncios</th><th class="r">Etiquetas</th><th class="r">Peças</th><th>Situação</th></tr></thead><tbody>
-  ${lst.slice(P.ini,P.fim).map(({e,m})=>`<tr class="clk ${DB.sel===e.id?"flag":""}" data-act="sel" data-id="${e.id}"><td class="mono">#${e.id}${m?`<div class="hit">${LUPA} ${esc(m)}</div>`:""}</td><td class="num">${e.criado?dfmt(e.criado):"—"}</td><td class="mono">${(e.pvs||[]).join(" · ")}</td><td class="r num">${e.anuncios.length}</td><td class="r num">${tot(e)}</td><td class="r num">${conf(e).pecas}</td><td><div class="tags">${statusTag(e)}${manualTag(e)}</div></td></tr>`).join("")||`<tr><td colspan="7" class="muted">Nenhum envio encontrado para esse filtro.</td></tr>`}
+  return `<div class="tbox"><table class="t"><thead><tr><th>Envio</th><th>Criado</th><th>Pré-vendas</th><th class="r">Anúncios</th><th class="r">Etiquetas</th><th class="r">Peças</th><th>Situação</th><th class="xcol"></th></tr></thead><tbody>
+  ${lst.slice(P.ini,P.fim).map(({e,m})=>`<tr class="clk ${DB.sel===e.id?"flag":""}" data-act="sel" data-id="${e.id}"><td class="mono">#${e.id}${m?`<div class="hit">${LUPA} ${esc(m)}</div>`:""}</td><td class="num">${e.criado?dfmt(e.criado):"—"}</td><td class="mono">${(e.pvs||[]).join(" · ")}</td><td class="r num">${e.anuncios.length}</td><td class="r num">${tot(e)}</td><td class="r num">${conf(e).pecas}</td><td><div class="tags">${statusTag(e)}${manualTag(e)}</div></td><td class="xcol">${delBtn(e)}</td></tr>`).join("")||`<tr><td colspan="8" class="muted">Nenhum envio encontrado para esse filtro.</td></tr>`}
   </tbody></table></div>${P.html}`;
 }
 function gEnvios(){

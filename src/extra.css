@@ -116,3 +116,8 @@
 .qrbox select.inp{height:40px}
 .locpill.off{font-family:var(--body);background:var(--off-soft);color:var(--off)}
 .noloc{font-weight:600;font-size:15px;color:var(--muted);text-align:center;padding:6px 0}
+.t th.xcol,.t td.xcol{width:1%;white-space:nowrap;text-align:right;padding-left:4px}
+.xdel{display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;background:none;color:var(--muted);border-radius:8px;padding:6px 8px;font-size:12px;font-weight:700}
+.xdel:hover{color:var(--err);background:var(--err-soft)}
+.xdel.on{color:#fff;background:var(--err)}
+.xdel:focus-visible{outline:2px solid var(--err);outline-offset:2px}

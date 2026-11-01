@@ -261,6 +261,11 @@ pre.res{white-space:pre-wrap;background:var(--bg);border-radius:10px;padding:12p
 .qrbox select.inp{height:40px}
 .locpill.off{font-family:var(--body);background:var(--off-soft);color:var(--off)}
 .noloc{font-weight:600;font-size:15px;color:var(--muted);text-align:center;padding:6px 0}
+.t th.xcol,.t td.xcol{width:1%;white-space:nowrap;text-align:right;padding-left:4px}
+.xdel{display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;background:none;color:var(--muted);border-radius:8px;padding:6px 8px;font-size:12px;font-weight:700}
+.xdel:hover{color:var(--err);background:var(--err-soft)}
+.xdel.on{color:#fff;background:var(--err)}
+.xdel:focus-visible{outline:2px solid var(--err);outline-offset:2px}
 </style>
 
 </head>
@@ -544,12 +549,17 @@ function pager(key,total,PG){ const pages=Math.max(1,Math.ceil(total/PG)); DB.pg
     <button class="btn btn-sm" data-act="pg" data-k="${key}" data-p="${p-1}" ${p<=1?"disabled":""}>‹ Anterior</button>
     ${nums.map(n=>n==="…"?`<span class="muted">…</span>`:`<button class="btn btn-sm ${n===p?"btn-dark":""}" data-act="pg" data-k="${key}" data-p="${n}" aria-current="${n===p?"page":"false"}">${n}</button>`).join("")}
     <button class="btn btn-sm" data-act="pg" data-k="${key}" data-p="${p+1}" ${p>=pages?"disabled":""}>Próxima ›</button></div></div>`}; }
+const XSVG=`<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+function delBtn(e){ const pend=DB.delPend&&DB.delPend.id===e.id&&Date.now()-DB.delPend.t<6000;
+  const aviso=e.status==="rascunho"?"":e.status==="liberado"?" A separação e as etiquetas já registradas serão perdidas.":" O histórico deste envio será apagado.";
+  return pend?`<button class="xdel on" data-act="delenv" data-id="${e.id}" title="Confirmar exclusão do envio #${e.id}.${aviso}">${XSVG}<span>Excluir?</span></button>`
+    :`<button class="xdel" data-act="delenv" data-id="${e.id}" title="Excluir envio #${e.id}" aria-label="Excluir envio #${e.id}">${XSVG}</button>`; }
 function gEnviosList(){
   const F=DB.f||(DB.f={per:"todos",q:""}); const [a,b]=periodo(); const q=norm(F.q).trim();
   const lst=DB.envios.filter(e=>(e.criado||0)>=a&&(e.criado||0)<=b).map(e=>({e,m:achou(e,q)})).filter(x=>x.m!==null).sort((x,y)=>(y.e.criado||0)-(x.e.criado||0));
   const P=pager("envios",lst.length,10);
-  return `<div class="tbox"><table class="t"><thead><tr><th>Envio</th><th>Criado</th><th>Pré-vendas</th><th class="r">Anúncios</th><th class="r">Etiquetas</th><th class="r">Peças</th><th>Situação</th></tr></thead><tbody>
-  ${lst.slice(P.ini,P.fim).map(({e,m})=>`<tr class="clk ${DB.sel===e.id?"flag":""}" data-act="sel" data-id="${e.id}"><td class="mono">#${e.id}${m?`<div class="hit">${LUPA} ${esc(m)}</div>`:""}</td><td class="num">${e.criado?dfmt(e.criado):"—"}</td><td class="mono">${(e.pvs||[]).join(" · ")}</td><td class="r num">${e.anuncios.length}</td><td class="r num">${tot(e)}</td><td class="r num">${conf(e).pecas}</td><td><div class="tags">${statusTag(e)}${manualTag(e)}</div></td></tr>`).join("")||`<tr><td colspan="7" class="muted">Nenhum envio encontrado para esse filtro.</td></tr>`}
+  return `<div class="tbox"><table class="t"><thead><tr><th>Envio</th><th>Criado</th><th>Pré-vendas</th><th class="r">Anúncios</th><th class="r">Etiquetas</th><th class="r">Peças</th><th>Situação</th><th class="xcol"></th></tr></thead><tbody>
+  ${lst.slice(P.ini,P.fim).map(({e,m})=>`<tr class="clk ${DB.sel===e.id?"flag":""}" data-act="sel" data-id="${e.id}"><td class="mono">#${e.id}${m?`<div class="hit">${LUPA} ${esc(m)}</div>`:""}</td><td class="num">${e.criado?dfmt(e.criado):"—"}</td><td class="mono">${(e.pvs||[]).join(" · ")}</td><td class="r num">${e.anuncios.length}</td><td class="r num">${tot(e)}</td><td class="r num">${conf(e).pecas}</td><td><div class="tags">${statusTag(e)}${manualTag(e)}</div></td><td class="xcol">${delBtn(e)}</td></tr>`).join("")||`<tr><td colspan="8" class="muted">Nenhum envio encontrado para esse filtro.</td></tr>`}
   </tbody></table></div>${P.html}`;
 }
 function gEnvios(){
@@ -904,6 +914,7 @@ document.addEventListener("click",ev=>{
   if(pk0){ const inv=pk0.dataset.inv; acao(()=>api("vinc",{inv,cod:pk0.dataset.pick,mult:V(inv).mult}),"Vínculo salvo."); return; }
   if(!ev.target.closest(".combo")) document.querySelectorAll(".clist").forEach(c=>c.hidden=true);
   const b=ev.target.closest("[data-act]"); if(!b) return; const act=b.dataset.act;
+  if(act!=="delenv") DB.delPend=null;
   const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur); const u=b.dataset.u; const pk=DB.mobile?"_m":u;
   FOCUS=null;
   const sep=(acaoNome,cod,extra={},msg="")=>api("sep",{envio:e.id,cod,acao:acaoNome,msg,...extra});
@@ -918,6 +929,9 @@ document.addEventListener("click",ev=>{
     case "criar": { const I=DB.imp; if(!I||!I.anuncios.length){ toast("Suba os arquivos de etiquetas."); return; } if(!I.pvs.length){ toast("Suba também a pré-venda em PDF."); return; }
       b.disabled=true; b.textContent="Importando…";
       acao(async()=>{ await api("importar",{envio:{id:I.id,anuncios:I.anuncios,pre:I.pre,pvs:I.pvs},erp:I.erpNovos,vinc:I.vinc}); DB.f={per:"todos",q:""}; DB.sel=I.id; DB.imp=null; },`Envio #${I.id} importado.`); return; }
+    case "delenv": { const id=b.dataset.id, e0=env(id);
+      if(!(DB.delPend&&DB.delPend.id===id&&Date.now()-DB.delPend.t<6000)){ DB.delPend={id,t:Date.now()}; toast(e0&&e0.status!=="rascunho"?`Envio #${id} já está com a expedição. Clique no X de novo para excluir.`:`Clique no X de novo para excluir o envio #${id}.`); break; }
+      DB.delPend=null; acao(async()=>{ await api("excluir",{id}); if(DB.sel===id) DB.sel=null; },`Envio #${id} excluído.`); return; }
     case "excluir": if(b.dataset.ok!=="1"){ b.dataset.ok="1"; b.textContent="Clique de novo para confirmar a exclusão"; return; } acao(async()=>{ await api("excluir",{id:b.dataset.id}); DB.sel=null; },"Rascunho excluído."); return;
     case "zpl": { const it=itens(e).find(i=>i.cod===b.dataset.cod); navigator.clipboard.writeText(zplFor(it)).then(()=>toast("ZPL copiado. Cole no utilitário da impressora térmica."),()=>toast("Não deu para copiar.")); return; }
     case "liberar": acao(()=>api("liberar",{id:b.dataset.id}),`Envio #${b.dataset.id} enviado para a fila da expedição.`); return;

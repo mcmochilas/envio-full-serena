@@ -59,6 +59,7 @@ document.addEventListener("click",ev=>{
   if(pk0){ const inv=pk0.dataset.inv; acao(()=>api("vinc",{inv,cod:pk0.dataset.pick,mult:V(inv).mult}),"Vínculo salvo."); return; }
   if(!ev.target.closest(".combo")) document.querySelectorAll(".clist").forEach(c=>c.hidden=true);
   const b=ev.target.closest("[data-act]"); if(!b) return; const act=b.dataset.act;
+  if(act!=="delenv") DB.delPend=null;
   const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur); const u=b.dataset.u; const pk=DB.mobile?"_m":u;
   FOCUS=null;
   const sep=(acaoNome,cod,extra={},msg="")=>api("sep",{envio:e.id,cod,acao:acaoNome,msg,...extra});
@@ -73,6 +74,9 @@ document.addEventListener("click",ev=>{
     case "criar": { const I=DB.imp; if(!I||!I.anuncios.length){ toast("Suba os arquivos de etiquetas."); return; } if(!I.pvs.length){ toast("Suba também a pré-venda em PDF."); return; }
       b.disabled=true; b.textContent="Importando…";
       acao(async()=>{ await api("importar",{envio:{id:I.id,anuncios:I.anuncios,pre:I.pre,pvs:I.pvs},erp:I.erpNovos,vinc:I.vinc}); DB.f={per:"todos",q:""}; DB.sel=I.id; DB.imp=null; },`Envio #${I.id} importado.`); return; }
+    case "delenv": { const id=b.dataset.id, e0=env(id);
+      if(!(DB.delPend&&DB.delPend.id===id&&Date.now()-DB.delPend.t<6000)){ DB.delPend={id,t:Date.now()}; toast(e0&&e0.status!=="rascunho"?`Envio #${id} já está com a expedição. Clique no X de novo para excluir.`:`Clique no X de novo para excluir o envio #${id}.`); break; }
+      DB.delPend=null; acao(async()=>{ await api("excluir",{id}); if(DB.sel===id) DB.sel=null; },`Envio #${id} excluído.`); return; }
     case "excluir": if(b.dataset.ok!=="1"){ b.dataset.ok="1"; b.textContent="Clique de novo para confirmar a exclusão"; return; } acao(async()=>{ await api("excluir",{id:b.dataset.id}); DB.sel=null; },"Rascunho excluído."); return;
     case "zpl": { const it=itens(e).find(i=>i.cod===b.dataset.cod); navigator.clipboard.writeText(zplFor(it)).then(()=>toast("ZPL copiado. Cole no utilitário da impressora térmica."),()=>toast("Não deu para copiar.")); return; }
     case "liberar": acao(()=>api("liberar",{id:b.dataset.id}),`Envio #${b.dataset.id} enviado para a fila da expedição.`); return;
