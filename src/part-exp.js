@@ -60,7 +60,7 @@ function xWork(e){
     ${DB.lbl&&its.find(i=>i.cod===DB.lbl)?xLabel(e,its.find(i=>i.cod===DB.lbl)):""}
     <div class="panel"><h3>Produtos do envio</h3>
       ${its.map(it=>`<div class="irow ${DB.lbl===it.cod?"sel":""}">
-        <div><div class="t1">${esc(nomeCod(it.cod))}</div><div class="t2">${locOf(it.cod)?`<span class="locpill">${locOf(it.cod)}</span> `:""}cód. ${it.cod} · ${compo(it)} · <b>${it.pecas} peças</b></div></div>
+        <div><div class="t1">${esc(nomeCod(it.cod))}</div><div class="t2">${locOf(it.cod)?`<span class="locpill">${locOf(it.cod)}</span> `:`<span class="locpill off">Sem cadastro de local</span> `}cód. ${it.cod} · ${compo(it)} · <b>${it.pecas} peças</b></div></div>
         <div class="ist">${stTag(it)}${it.s.status==="separando"?`<span class="t2 num">${it.s.n}/${it.pecas} coletadas</span>`:it.s.resp&&it.s.status!=="livre"?`<span class="t2">coletado por ${esc(nomeU(it.s.resp))}</span>`:""}</div>
         <div class="iact">${it.s.status==="coletado"?`<button class="btn btn-dark btn-sm" data-act="lbl" data-cod="${it.cod}">Gerar etiquetas</button>`
           :it.s.status==="impresso"?`<button class="btn btn-sm" data-act="lbl" data-cod="${it.cod}">Continuar · ${it.lab}/${it.etq}</button>`
@@ -121,7 +121,7 @@ function phoneHtml(e,u,mode){
       <button class="pback" data-act="p-back" data-u="${u}">← Lista</button>
       ${locOf(it.cod)?`<div class="pcard2 ploc"><span class="eyebrow">Endereço no estoque</span><div class="loc-code">${locOf(it.cod)}</div><span class="t2">${locTxt(locOf(it.cod))}</span>
         <div class="map-card" id="map-${mode}-${u}" data-k="${u}:${it.cod}">${mapSVG({loc:parseCode(locOf(it.cod))},null)}</div></div>`
-        :`<div class="pcard2 ploc"><span class="eyebrow">Endereço no estoque</span><div class="loc-code" style="font-size:20px;color:var(--warn)">Sem local cadastrado no Picking</div></div>`}
+        :`<div class="pcard2 ploc"><div class="noloc">Sem cadastro de local</div></div>`}
       <div class="pcard2"><span class="eyebrow">Cód. ${it.cod}${p.ean?` · EAN ${p.ean}`:" · sem EAN no ERP"}</span><h2>${esc(p.nome)}</h2>
         <div class="pcount"><b class="num">${it.s.n}</b><span class="num">de ${it.pecas} peças</span></div>
         <div class="bar"><i class="${full?"full":""}" style="width:${Math.round(it.s.n/it.pecas*100)}%"></i></div>
@@ -137,7 +137,7 @@ function phoneHtml(e,u,mode){
   const meus=its.filter(i=>i.s.status==="separando"&&i.s.resp===u), livres=its.filter(i=>i.s.status==="livre"),
         outros=its.filter(i=>i.s.status==="separando"&&i.s.resp!==u), feitos=its.filter(i=>["coletado","impresso","etiquetado"].includes(i.s.status));
   livres.sort((a,b)=>locOrd(a.cod).localeCompare(locOrd(b.cod)));
-  const card=(i,act)=>`<div class="pitem2"><div>${locOf(i.cod)?`<span class="locpill">${locOf(i.cod)}</span>`:""}<div class="t1">${esc(nomeCod(i.cod))}</div><div class="t2">cód. ${i.cod} · <b>${i.pecas} peças</b></div></div>${act}</div>`;
+  const card=(i,act)=>`<div class="pitem2"><div>${locOf(i.cod)?`<span class="locpill">${locOf(i.cod)}</span>`:`<span class="locpill off">Sem cadastro de local</span>`}<div class="t1">${esc(nomeCod(i.cod))}</div><div class="t2">cód. ${i.cod} · <b>${i.pecas} peças</b></div></div>${act}</div>`;
   return `${top}<div class="pbody">
     ${meus.length?`<span class="psec">Com você</span>${meus.map(i=>card(i,`<button class="btn btn-dark btn-sm" data-act="p-open" data-u="${u}" data-cod="${i.cod}">Continuar ${i.s.n}/${i.pecas}</button>`)).join("")}`:""}
     <span class="psec">Para buscar · na ordem do caminho</span>
