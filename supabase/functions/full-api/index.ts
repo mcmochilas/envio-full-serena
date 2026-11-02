@@ -26,9 +26,11 @@ async function quem(req: Request): Promise<Me | null> {
   if (qr) {
     const k = await q(db.from("full_qr").select("envio,login,revogado").eq("token", qr).maybeSingle());
     if (!k || k.revogado) return null;
-    const e = await q(db.from("full_envios").select("status").eq("id", k.envio).maybeSingle());
+    const [e, u] = await Promise.all([
+      q(db.from("full_envios").select("status").eq("id", k.envio).maybeSingle()),
+      q(db.from("full_users").select("login,nome,role,ativo").eq("login", k.login).maybeSingle()),
+    ]);
     if (!e || e.status !== "liberado") return null;
-    const u = await q(db.from("full_users").select("login,nome,role,ativo").eq("login", k.login).maybeSingle());
     return u && u.ativo ? { login: u.login, nome: u.nome, role: "expedicao", qrEnvio: k.envio } : null;
   }
   return null;
