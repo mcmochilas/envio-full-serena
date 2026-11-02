@@ -12,6 +12,7 @@ html = f'''<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script>/* celular da separação: sem zoom automático ao focar/desfocar o campo de bipe */ if(/^#s-/.test(location.hash)) document.querySelector('meta[name=viewport]').setAttribute("content","width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no");</script>
 <title>Envio Full · Serena</title>
 <meta name="theme-color" content="#0F3A4E">
 <link rel="icon" type="image/png" href="/icon.png">

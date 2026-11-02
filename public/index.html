@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script>/* celular da separação: sem zoom automático ao focar/desfocar o campo de bipe */ if(/^#s-/.test(location.hash)) document.querySelector('meta[name=viewport]').setAttribute("content","width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no");</script>
 <title>Envio Full · Serena</title>
 <meta name="theme-color" content="#0F3A4E">
 <link rel="icon" type="image/png" href="/icon.png">
@@ -267,6 +268,8 @@ pre.res{white-space:pre-wrap;background:var(--bg);border-radius:10px;padding:12p
 .xdel.on{color:#fff;background:var(--err)}
 .xdel:focus-visible{outline:2px solid var(--err);outline-offset:2px}
 .plr{display:flex;align-items:center;gap:12px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.phonefull input,.phonefull select,.phonefull textarea{font-size:16px!important}
 </style>
 
 </head>

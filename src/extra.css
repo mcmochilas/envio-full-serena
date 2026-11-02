@@ -122,3 +122,5 @@
 .xdel.on{color:#fff;background:var(--err)}
 .xdel:focus-visible{outline:2px solid var(--err);outline-offset:2px}
 .plr{display:flex;align-items:center;gap:12px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.phonefull input,.phonefull select,.phonefull textarea{font-size:16px!important}
