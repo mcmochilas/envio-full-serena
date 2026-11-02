@@ -154,7 +154,15 @@ function renderPhoneFull(){
   if(FOCUS){ const f=document.getElementById(FOCUS); if(f) f.focus(); }
 }
 let FILA=Promise.resolve();
-function enfileira(fn){ FILA=FILA.then(fn).catch(()=>{}); return FILA; }
+let PEND=0;
+function enfileira(fn){ PEND++; FILA=FILA.then(fn).catch(()=>{}).finally(()=>{ PEND--; }); return FILA; }
+/* ação do celular com resposta imediata: aplica na tela já e confirma no servidor em segundo plano */
+function otim(e,cod,acaoNome,extra,msg,aplica){
+  const s=sepOf(e,cod); const antes=JSON.parse(JSON.stringify(s)); aplica(s);
+  enfileira(async()=>{ try{ const r=await api("sep",{envio:e.id,cod,acao:acaoNome,msg,...extra}); if(r.erro) throw new Error(r.erro);
+      if(r.sep) Object.assign(s,{status:r.sep.status,resp:r.sep.resp,n:r.sep.n,lab:r.sep.lab||{}}); }
+    catch(x){ Object.assign(s,antes); toast(x.message); beep(false); try{ await carregar(true); }catch(_){} render(); } });
+}
 function phScan(e,u,code){
   const key=DB.mobile?"_m":u; const ph=DB.ph[key]; const it=itens(e).find(i=>i.cod===ph.cod); const s=sepOf(e,ph.cod);
   if(!it||s.resp!==u) return;

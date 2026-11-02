@@ -44,6 +44,7 @@ function aplicar(st){
 async function carregar(force){
   const st=await api("state",force?{}:{since:DB.rev});
   if(st.same) return false;
+  if(!force&&typeof PEND!=="undefined"&&PEND>0) return false; /* há bipes a caminho do servidor: não sobrescreve a tela */
   aplicar(st); return true;
 }
 let ocupado=0;

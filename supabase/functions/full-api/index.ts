@@ -37,9 +37,12 @@ const log = (envio: string, msg: string) => db.from("full_log").insert({ envio, 
 const toque = (id: string) => db.from("full_envios").update({ updated_at: new Date().toISOString() }).eq("id", id);
 
 async function rev() {
-  const a = await q(db.from("full_envios").select("updated_at").order("updated_at", { ascending: false }).limit(1));
-  const b = await q(db.from("full_vinc").select("updated_at").order("updated_at", { ascending: false }).limit(1));
-  const { count } = await db.from("full_envios").select("id", { count: "exact", head: true });
+  const [a, b, c] = await Promise.all([
+    q(db.from("full_envios").select("updated_at").order("updated_at", { ascending: false }).limit(1)),
+    q(db.from("full_vinc").select("updated_at").order("updated_at", { ascending: false }).limit(1)),
+    db.from("full_envios").select("id", { count: "exact", head: true }),
+  ]);
+  const count = c.count;
   return `${a[0]?.updated_at || ""}|${b[0]?.updated_at || ""}|${count ?? ""}`;
 }
 
@@ -52,14 +55,37 @@ async function estado(me: Me, since?: string) {
   const envios = await q(sel);
   const ids = envios.map((e: { id: string }) => e.id);
   const ativos = envios.filter((e: { status: string }) => e.status !== "concluido").map((e: { id: string }) => e.id);
-  const sep = ids.length ? await q(db.from("full_sep").select("envio,cod,status,resp,n,lab").in("envio", ids)) : [];
-  const logs = ativos.length ? await q(db.from("full_log").select("envio,at,msg").in("envio", ativos).order("at", { ascending: false }).limit(300)) : [];
-  const vinc = await q(db.from("full_vinc").select("inv,cod,mult"));
-  const erp = await q(db.from("full_erp").select("cod,nome,ean"));
+  // celular (QR): só o que a tela de separação usa, em paralelo
+  if (me.qrEnvio) {
+    const invs = [...new Set(envios.flatMap((e: any) => (e.anuncios || []).map((a: any) => a.inv)))];
+    const [sep, vinc, blocks, users] = await Promise.all([
+      ids.length ? q(db.from("full_sep").select("envio,cod,status,resp,n,lab").in("envio", ids)) : [],
+      invs.length ? q(db.from("full_vinc").select("inv,cod,mult").in("inv", invs)) : [],
+      q(db.from("blocks").select("id,data")),
+      q(db.from("full_users").select("login,nome,role,ativo").eq("ativo", true)),
+    ]);
+    const cods = [...new Set(vinc.map((v: any) => v.cod).filter(Boolean))];
+    const [erp, prods] = cods.length ? await Promise.all([
+      q(db.from("full_erp").select("cod,nome,ean").in("cod", cods)),
+      q(db.from("products").select("id,data").in("id", cods)),
+    ]) : [[], []];
+    return {
+      rev: r, me, envios, sep, logs: [], vinc, erp,
+      locs: Object.fromEntries(prods.map((p: any) => [p.id, p.data?.loc || ""])),
+      blocks: Object.fromEntries(blocks.map((b: any) => [b.id, b.data])),
+      users,
+    };
+  }
+  const [sep, logs, vinc, erp, blocks, users] = await Promise.all([
+    ids.length ? q(db.from("full_sep").select("envio,cod,status,resp,n,lab").in("envio", ids)) : [],
+    ativos.length ? q(db.from("full_log").select("envio,at,msg").in("envio", ativos).order("at", { ascending: false }).limit(300)) : [],
+    q(db.from("full_vinc").select("inv,cod,mult")),
+    q(db.from("full_erp").select("cod,nome,ean")),
+    q(db.from("blocks").select("id,data")),
+    q(db.from("full_users").select("login,nome,role,ativo").order("nome")),
+  ]);
   const cods = erp.map((p: { cod: string }) => p.cod);
   const prods = cods.length ? await q(db.from("products").select("id,data").in("id", cods)) : [];
-  const blocks = await q(db.from("blocks").select("id,data"));
-  const users = await q(db.from("full_users").select("login,nome,role,ativo").order("nome"));
   return {
     rev: r, me,
     envios, sep, logs, vinc, erp,

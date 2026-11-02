@@ -36,7 +36,7 @@ async function iniciar(){
 /* ---------- atualização automática (outras pessoas no mesmo envio) ---------- */
 function digitando(){ const a=document.activeElement; return a && (a.id==="fq"||a.dataset?.vq!==undefined||a.tagName==="TEXTAREA"||(a.closest&&a.closest("#uForm"))||a.type==="date"||a.type==="number"); }
 setInterval(async()=>{
-  if(document.hidden||ocupado||!DB.carregado||(!PREF.token&&!DB.qr)||DB.mobile==="__x") return;
+  if(document.hidden||ocupado||PEND>0||!DB.carregado||(!PREF.token&&!DB.qr)||DB.mobile==="__x") return;
   try{ const mudou=await carregar(false); if(mudou&&!digitando()){ const a=document.activeElement, id=a?.id, val=a?.value; render(); if(id){ const n=document.getElementById(id); if(n){ n.focus(); if(val&&n.value!==undefined&&!n.value) n.value=val; } } } }catch(e){}
 },4000);
 
@@ -100,17 +100,22 @@ document.addEventListener("click",ev=>{
     case "uEdit": DB.uEdit={...DB.users[u]}; break;
     case "uCancel": DB.uEdit=null; break;
     /* celular */
-    case "p-pega": { const cod=b.dataset.cod; acao(async()=>{ const r=await sep("pega",cod,{},`começou a separar ${nomeCod(cod)}`); if(r.erro) throw new Error(r.erro); DB.ph[pk]={scr:"pick",cod,msg:null}; FOCUS=`pscan-${u}`; }); return; }
+    case "p-pega": { const cod=b.dataset.cod; const s0=sepOf(e,cod); if(s0.status!=="livre"){ toast("Outra pessoa já pegou este item."); break; }
+      otim(e,cod,"pega",{},`começou a separar ${nomeCod(cod)}`,s=>Object.assign(s,{status:"separando",resp:u,n:0}));
+      DB.ph[pk]={scr:"pick",cod,msg:null}; FOCUS=`pscan-${u}`; window.scrollTo(0,0); break; }
     case "p-open": DB.ph[pk]={scr:"pick",cod:b.dataset.cod,msg:null}; FOCUS=`pscan-${u}`; break;
     case "p-back": camDesliga(); DB.ph[pk]={scr:"lista"}; break;
     case "p-mais": phScan(e,u,null); atualizaPick(); return;
     case "p-tudo": { const it=itens(e).find(i=>i.cod===b.dataset.cod); if(b.dataset.ok!=="1"){ b.dataset.ok="1"; b.textContent=`Confirmar: peguei as ${it.pecas} peças`; return; }
-      acao(async()=>{ const r=await sep("tudo",it.cod,{total:it.pecas}); if(r.erro) throw new Error(r.erro); DB.ph[pk].msg={ok:true,t:"Todas as peças coletadas. Leve para a bancada."}; }); return; }
+      otim(e,it.cod,"tudo",{total:it.pecas},"",s=>{ s.n=it.pecas; }); DB.ph[pk].msg={ok:true,t:"Todas as peças coletadas. Leve para a bancada."}; break; }
     case "p-cam": camLiga(e,u); return;
     case "p-camx": camDesliga(); $("#camwrap").hidden=true; return;
     case "p-done": { camDesliga(); const it=itens(e).find(i=>i.cod===b.dataset.cod);
-      acao(async()=>{ await FILA; const r=await sep("done",it.cod,{total:it.pecas},`coletou ${nomeCod(it.cod)} (${it.pecas} peças)`); if(r.erro) throw new Error(r.erro); DB.ph[pk]={scr:"lista"}; },`${nomeCod(b.dataset.cod)} pronto para etiquetar no computador.`); return; }
-    case "p-solta": { camDesliga(); const cod=b.dataset.cod; acao(async()=>{ await FILA; const r=await sep("solta",cod,{},`devolveu ${nomeCod(cod)} para a lista`); if(r.erro) throw new Error(r.erro); DB.ph[pk]={scr:"lista"}; }); return; }
+      otim(e,it.cod,"done",{total:it.pecas},`coletou ${nomeCod(it.cod)} (${it.pecas} peças)`,s=>{ s.status="coletado"; });
+      DB.ph[pk]={scr:"lista"}; toast(`${nomeCod(it.cod)} pronto para etiquetar no computador.`); window.scrollTo(0,0); break; }
+    case "p-solta": { camDesliga(); const cod=b.dataset.cod;
+      otim(e,cod,"solta",{},`devolveu ${nomeCod(cod)} para a lista`,s=>Object.assign(s,{status:"livre",resp:null,n:0}));
+      DB.ph[pk]={scr:"lista"}; window.scrollTo(0,0); break; }
     default: return;
   }
   save(); render();
