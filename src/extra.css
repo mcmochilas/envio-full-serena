@@ -121,3 +121,4 @@
 .xdel:hover{color:var(--err);background:var(--err-soft)}
 .xdel.on{color:#fff;background:var(--err)}
 .xdel:focus-visible{outline:2px solid var(--err);outline-offset:2px}
+.plr{display:flex;align-items:center;gap:12px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}

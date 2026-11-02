@@ -88,16 +88,16 @@ function zplFor(it){
   return out.join("\n");
 }
 function xLabel(e,it){
-  const s=it.s; const imp=s.status==="impresso";
-  const sheet=imp?"":zPreview(it);
+  const s=it.s; const imp=s.status==="impresso"; const n=it.anuncios.length;
+  const row=a=>{ const d=Math.min(s.lab?.[a.inv]||0,a.etiquetas);
+    return `<div class="pl"><b class="num">${a.etiquetas}×</b><div><div class="t1">${a.mult===1?"Etiqueta de unidade":`Etiqueta de kit · junte ${a.mult} peças por saquinho`}</div><div class="t2 mono">${esc(a.inv)}</div></div>
+      <div class="plr">${imp?`<span class="num ${d>=a.etiquetas?"okmark":"t2"}">${d}/${a.etiquetas} coladas</span>`:""}${(()=>{ const ja=!!(DB.jaImp||{})[e.id+"|"+a.inv]; return `<button class="btn btn-sm ${ja?"":"btn-dark"}" data-act="imprimir" data-cod="${it.cod}" data-inv="${esc(a.inv)}">${ja?"Reimprimir":"Imprimir"}`; })()} ${a.etiquetas} ${a.mult===1?(a.etiquetas>1?"unidades":"unidade"):(a.etiquetas>1?"kits":"kit")}</button></div></div>`; };
   return `<div class="panel lblp"><div class="lhd"><div><span class="eyebrow">Etiquetas</span><h3 style="font-size:19px">${esc(nomeCod(it.cod))}</h3></div><button class="btn btn-sm" data-act="lblx">Fechar</button></div>
-    <div class="plan">${it.anuncios.map(a=>{ const d=Math.min(s.lab?.[a.inv]||0,a.etiquetas); return `<div class="pl"><b class="num">${a.etiquetas}×</b><div><div class="t1">${a.mult===1?"Etiqueta de unidade":`Etiqueta de kit · junte ${a.mult} peças por saquinho`}</div><div class="t2 mono">${esc(a.inv)}</div></div>${imp?`<span class="num ${d>=a.etiquetas?"okmark":"t2"}">${d}/${a.etiquetas}</span>`:""}</div>`; }).join("")}</div>
-    ${!imp?`<div class="zsheet" aria-label="Prévia das etiquetas em 2 colunas">${sheet}</div>
-      <p class="hint">Prévia da folha da térmica (2 colunas). Mesmo layout do PDF que vocês imprimem hoje: 80 × 25 mm, duas etiquetas por linha, só as deste produto.</p>
-      <div class="acts"><button class="btn btn-dark" data-act="imprimir" data-cod="${it.cod}" style="height:50px">Gerar PDF e imprimir ${it.etq} etiquetas</button><button class="btn" data-act="zpl" data-cod="${it.cod}">Copiar ZPL</button><button class="lnkbtn" data-act="jaimp" data-cod="${it.cod}">Já imprimi, ir para o bipe</button></div>`
-    :`<form class="scan" id="lblForm" autocomplete="off"><input class="inp" id="lscan" placeholder="Bipe cada etiqueta depois de colar" aria-label="Código da etiqueta"><button class="btn btn-dark" type="submit">OK</button></form>
-      ${DB.lmsg?`<div class="lmsg ${DB.lmsg.ok?"ok":"err"}">${esc(DB.lmsg.t)}</div>`:""}
-      <div class="acts"><button class="btn btn-sm" data-act="reimp" data-cod="${it.cod}">Reimprimir etiquetas</button></div>`}
+    <div class="plan">${it.anuncios.map(row).join("")}</div>
+    ${imp?`<form class="scan" id="lblForm" autocomplete="off"><input class="inp" id="lscan" placeholder="Bipe cada etiqueta depois de colar" aria-label="Código da etiqueta"><button class="btn btn-dark" type="submit">OK</button></form>
+      ${DB.lmsg?`<div class="lmsg ${DB.lmsg.ok?"ok":"err"}">${esc(DB.lmsg.t)}</div>`:""}`:""}
+    <div class="acts">${n>1?`<button class="btn ${imp?"":"btn-dark"}" data-act="imprimir" data-cod="${it.cod}">Imprimir todas juntas · ${it.etq} etiquetas</button>`:""}<button class="btn" data-act="zpl" data-cod="${it.cod}">Copiar ZPL</button>${imp?"":`<button class="lnkbtn" data-act="jaimp" data-cod="${it.cod}">Já imprimi, ir para o bipe</button>`}</div>
+    <p class="hint">PDF no layout da térmica: 80 × 25 mm, duas etiquetas por linha.</p>
   </div>`;
 }
 const qrU=()=>DB.qrU&&DB.users[DB.qrU]?DB.qrU:DB.me;

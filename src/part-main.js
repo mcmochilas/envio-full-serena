@@ -92,9 +92,10 @@ document.addEventListener("click",ev=>{
     case "qrCopiar": qrLink(e.id,qrU()).then(l=>navigator.clipboard.writeText(l)).then(()=>toast("Link copiado."),x=>toast(x?.message||"Não deu para copiar.")); return;
     case "lbl": DB.lbl=b.dataset.cod; DB.lmsg=null; if(sepOf(e,DB.lbl).status==="impresso") FOCUS="lscan"; break;
     case "lblx": DB.lbl=null; DB.lmsg=null; break;
-    case "imprimir": { const cod=b.dataset.cod; b.disabled=true; imprimirPDF(e,cod).then(ok=>{ if(ok){ FOCUS="lscan"; acao(()=>sep("impresso",cod,{},`imprimiu as etiquetas de ${nomeCod(cod)}`)); } else render(); }); return; }
+    case "imprimir": { const cod=b.dataset.cod, inv=b.dataset.inv||null; const it0=itens(e).find(i=>i.cod===cod); const a0=inv&&it0?it0.anuncios.find(x=>x.inv===inv):null;
+      const oq=a0?`${a0.etiquetas} etiquetas ${a0.mult===1?"de unidade":"de kit"} de ${nomeCod(cod)}`:`as etiquetas de ${nomeCod(cod)}`;
+      imprimirPDF(e,cod,inv).then(ok=>{ if(!ok) return; DB.jaImp=DB.jaImp||{}; (it0?it0.anuncios:[]).filter(x=>!inv||x.inv===inv).forEach(x=>DB.jaImp[e.id+"|"+x.inv]=true); FOCUS="lscan"; if(sepOf(e,cod).status==="coletado") acao(()=>sep("impresso",cod,{},`imprimiu ${oq}`)); else render(); }); return; }
     case "jaimp": { const cod=b.dataset.cod; FOCUS="lscan"; acao(()=>sep("impresso",cod,{},`imprimiu as etiquetas de ${nomeCod(cod)}`)); return; }
-    case "reimp": imprimirPDF(e,b.dataset.cod); return;
     case "uNovo": DB.uEdit={novo:true,role:"expedicao",ativo:true}; break;
     case "uEdit": DB.uEdit={...DB.users[u]}; break;
     case "uCancel": DB.uEdit=null; break;

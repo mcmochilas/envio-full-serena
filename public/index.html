@@ -266,6 +266,7 @@ pre.res{white-space:pre-wrap;background:var(--bg);border-radius:10px;padding:12p
 .xdel:hover{color:var(--err);background:var(--err-soft)}
 .xdel.on{color:#fff;background:var(--err)}
 .xdel:focus-visible{outline:2px solid var(--err);outline-offset:2px}
+.plr{display:flex;align-items:center;gap:12px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
 </style>
 
 </head>
@@ -499,14 +500,13 @@ function zLabel(ctx,a,ox){
 }
 function zPage(pair){ const c=document.createElement("canvas"); c.width=ZW; c.height=ZH; const ctx=c.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,ZW,ZH);
   zLabel(ctx,pair[0],0); if(pair[1]) zLabel(ctx,pair[1],320); return c; }
-function zPairs(it){ const etq=it.anuncios.flatMap(a=>Array.from({length:a.etiquetas},()=>a)); const p=[]; for(let i=0;i<etq.length;i+=2) p.push([etq[i],etq[i+1]]); return p; }
-function zPreview(it){ return zPairs(it).map(p=>`<img class="zpg" alt="Etiquetas ${esc(p[0].inv)}" src="${zPage(p).toDataURL("image/png")}">`).join(""); }
-function zPDF(it){ const {jsPDF}=window.jspdf; const doc=new jsPDF({orientation:"landscape",unit:"pt",format:[226.64,70.58]});
-  zPairs(it).forEach((p,i)=>{ if(i) doc.addPage([226.64,70.58],"landscape"); doc.addImage(zPage(p).toDataURL("image/png"),"PNG",0,0,226.64,70.58,undefined,"FAST"); });
+function zPairs(it,inv){ const etq=it.anuncios.filter(a=>!inv||a.inv===inv).flatMap(a=>Array.from({length:a.etiquetas},()=>a)); const p=[]; for(let i=0;i<etq.length;i+=2) p.push([etq[i],etq[i+1]]); return p; }
+function zPDF(it,inv){ const {jsPDF}=window.jspdf; const doc=new jsPDF({orientation:"landscape",unit:"pt",format:[226.64,70.58]});
+  zPairs(it,inv).forEach((p,i)=>{ if(i) doc.addPage([226.64,70.58],"landscape"); doc.addImage(zPage(p).toDataURL("image/png"),"PNG",0,0,226.64,70.58,undefined,"FAST"); });
   return doc.output("blob"); }
-async function imprimirPDF(e,cod){
+async function imprimirPDF(e,cod,inv){
   const it=itens(e).find(i=>i.cod===cod); if(!window.jspdf){ toast("O gerador de PDF não carregou. Recarregue a página."); return false; }
-  const blob=zPDF(it), name=`Envio-${e.id}-${cod}-etiquetas.pdf`, url=URL.createObjectURL(blob);
+  const blob=zPDF(it,inv), name=`Envio-${e.id}-${cod}${inv?"-"+inv:""}-etiquetas.pdf`, url=URL.createObjectURL(blob);
   const w=window.open(url,"_blank");
   if(!w){ const a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); toast("PDF baixado. Abra e imprima na térmica (80 × 25 mm)."); }
   else toast("PDF aberto em outra aba. Imprima na térmica (80 × 25 mm, 2 colunas).");
@@ -767,16 +767,16 @@ function zplFor(it){
   return out.join("\n");
 }
 function xLabel(e,it){
-  const s=it.s; const imp=s.status==="impresso";
-  const sheet=imp?"":zPreview(it);
+  const s=it.s; const imp=s.status==="impresso"; const n=it.anuncios.length;
+  const row=a=>{ const d=Math.min(s.lab?.[a.inv]||0,a.etiquetas);
+    return `<div class="pl"><b class="num">${a.etiquetas}×</b><div><div class="t1">${a.mult===1?"Etiqueta de unidade":`Etiqueta de kit · junte ${a.mult} peças por saquinho`}</div><div class="t2 mono">${esc(a.inv)}</div></div>
+      <div class="plr">${imp?`<span class="num ${d>=a.etiquetas?"okmark":"t2"}">${d}/${a.etiquetas} coladas</span>`:""}${(()=>{ const ja=!!(DB.jaImp||{})[e.id+"|"+a.inv]; return `<button class="btn btn-sm ${ja?"":"btn-dark"}" data-act="imprimir" data-cod="${it.cod}" data-inv="${esc(a.inv)}">${ja?"Reimprimir":"Imprimir"}`; })()} ${a.etiquetas} ${a.mult===1?(a.etiquetas>1?"unidades":"unidade"):(a.etiquetas>1?"kits":"kit")}</button></div></div>`; };
   return `<div class="panel lblp"><div class="lhd"><div><span class="eyebrow">Etiquetas</span><h3 style="font-size:19px">${esc(nomeCod(it.cod))}</h3></div><button class="btn btn-sm" data-act="lblx">Fechar</button></div>
-    <div class="plan">${it.anuncios.map(a=>{ const d=Math.min(s.lab?.[a.inv]||0,a.etiquetas); return `<div class="pl"><b class="num">${a.etiquetas}×</b><div><div class="t1">${a.mult===1?"Etiqueta de unidade":`Etiqueta de kit · junte ${a.mult} peças por saquinho`}</div><div class="t2 mono">${esc(a.inv)}</div></div>${imp?`<span class="num ${d>=a.etiquetas?"okmark":"t2"}">${d}/${a.etiquetas}</span>`:""}</div>`; }).join("")}</div>
-    ${!imp?`<div class="zsheet" aria-label="Prévia das etiquetas em 2 colunas">${sheet}</div>
-      <p class="hint">Prévia da folha da térmica (2 colunas). Mesmo layout do PDF que vocês imprimem hoje: 80 × 25 mm, duas etiquetas por linha, só as deste produto.</p>
-      <div class="acts"><button class="btn btn-dark" data-act="imprimir" data-cod="${it.cod}" style="height:50px">Gerar PDF e imprimir ${it.etq} etiquetas</button><button class="btn" data-act="zpl" data-cod="${it.cod}">Copiar ZPL</button><button class="lnkbtn" data-act="jaimp" data-cod="${it.cod}">Já imprimi, ir para o bipe</button></div>`
-    :`<form class="scan" id="lblForm" autocomplete="off"><input class="inp" id="lscan" placeholder="Bipe cada etiqueta depois de colar" aria-label="Código da etiqueta"><button class="btn btn-dark" type="submit">OK</button></form>
-      ${DB.lmsg?`<div class="lmsg ${DB.lmsg.ok?"ok":"err"}">${esc(DB.lmsg.t)}</div>`:""}
-      <div class="acts"><button class="btn btn-sm" data-act="reimp" data-cod="${it.cod}">Reimprimir etiquetas</button></div>`}
+    <div class="plan">${it.anuncios.map(row).join("")}</div>
+    ${imp?`<form class="scan" id="lblForm" autocomplete="off"><input class="inp" id="lscan" placeholder="Bipe cada etiqueta depois de colar" aria-label="Código da etiqueta"><button class="btn btn-dark" type="submit">OK</button></form>
+      ${DB.lmsg?`<div class="lmsg ${DB.lmsg.ok?"ok":"err"}">${esc(DB.lmsg.t)}</div>`:""}`:""}
+    <div class="acts">${n>1?`<button class="btn ${imp?"":"btn-dark"}" data-act="imprimir" data-cod="${it.cod}">Imprimir todas juntas · ${it.etq} etiquetas</button>`:""}<button class="btn" data-act="zpl" data-cod="${it.cod}">Copiar ZPL</button>${imp?"":`<button class="lnkbtn" data-act="jaimp" data-cod="${it.cod}">Já imprimi, ir para o bipe</button>`}</div>
+    <p class="hint">PDF no layout da térmica: 80 × 25 mm, duas etiquetas por linha.</p>
   </div>`;
 }
 const qrU=()=>DB.qrU&&DB.users[DB.qrU]?DB.qrU:DB.me;
@@ -947,9 +947,10 @@ document.addEventListener("click",ev=>{
     case "qrCopiar": qrLink(e.id,qrU()).then(l=>navigator.clipboard.writeText(l)).then(()=>toast("Link copiado."),x=>toast(x?.message||"Não deu para copiar.")); return;
     case "lbl": DB.lbl=b.dataset.cod; DB.lmsg=null; if(sepOf(e,DB.lbl).status==="impresso") FOCUS="lscan"; break;
     case "lblx": DB.lbl=null; DB.lmsg=null; break;
-    case "imprimir": { const cod=b.dataset.cod; b.disabled=true; imprimirPDF(e,cod).then(ok=>{ if(ok){ FOCUS="lscan"; acao(()=>sep("impresso",cod,{},`imprimiu as etiquetas de ${nomeCod(cod)}`)); } else render(); }); return; }
+    case "imprimir": { const cod=b.dataset.cod, inv=b.dataset.inv||null; const it0=itens(e).find(i=>i.cod===cod); const a0=inv&&it0?it0.anuncios.find(x=>x.inv===inv):null;
+      const oq=a0?`${a0.etiquetas} etiquetas ${a0.mult===1?"de unidade":"de kit"} de ${nomeCod(cod)}`:`as etiquetas de ${nomeCod(cod)}`;
+      imprimirPDF(e,cod,inv).then(ok=>{ if(!ok) return; DB.jaImp=DB.jaImp||{}; (it0?it0.anuncios:[]).filter(x=>!inv||x.inv===inv).forEach(x=>DB.jaImp[e.id+"|"+x.inv]=true); FOCUS="lscan"; if(sepOf(e,cod).status==="coletado") acao(()=>sep("impresso",cod,{},`imprimiu ${oq}`)); else render(); }); return; }
     case "jaimp": { const cod=b.dataset.cod; FOCUS="lscan"; acao(()=>sep("impresso",cod,{},`imprimiu as etiquetas de ${nomeCod(cod)}`)); return; }
-    case "reimp": imprimirPDF(e,b.dataset.cod); return;
     case "uNovo": DB.uEdit={novo:true,role:"expedicao",ativo:true}; break;
     case "uEdit": DB.uEdit={...DB.users[u]}; break;
     case "uCancel": DB.uEdit=null; break;
