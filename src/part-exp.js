@@ -101,17 +101,20 @@ function xLabel(e,it){
   </div>`;
 }
 const AJUDA=[
-  ["Troque o rolo","Substitua o rolo de etiqueta normal pelo rolo de etiquetas de <b>duas colunas do Full</b>.","rolo"],
+  ["Troque o rolo","Substitua o rolo de etiqueta normal pelo rolo de etiquetas de <b>duas colunas do Full</b> (como o da foto).","rolo"],
   ["Abra as impressoras","No menu Iniciar, digite <b>impressora</b> e clique em <b>Impressoras e scanners</b>. Selecione a <b>MDK-006</b> e clique em <b>Gerenciar</b>.","impressoras"],
   ["Preferências de impressão","Na tela da MDK-006, clique em <b>Preferências de impressão</b> e depois no botão <b>Gestão do papel</b>.","gerenciar"],
   ["Crie o papel Full","Em <b>Nome</b>, digite <b>Full</b>. Em <b>Largura</b>, coloque <b>3.85</b> e em <b>Comprimento</b>, <b>0.98</b> (polegadas). Clique em <b>preservação</b> para salvar e depois em OK.","papel"],
   ["Selecione o papel Full","De volta às preferências, escolha o papel <b>Full</b> na lista e clique em <b>Aplicar</b> e <b>OK</b> para salvar os ajustes.","preferencias"],
   ["Imprima","Gere o PDF das etiquetas pelo app. Na janela de impressão, escolha a <b>MDK-006</b>, abra <b>Mais definições</b> e em <b>Tamanho do papel</b> selecione <b>Full</b>. Clique em <b>Imprimir</b>.","imprimir"]];
-function ajudaHtml(){ return `<div class="mdl" data-act="ajudax"><div class="mdlc" role="dialog" aria-modal="true" aria-labelledby="ajT" data-stop="1">
-  <div class="mdlh"><div><span class="eyebrow">Ajuda</span><h3 id="ajT">Configurar a impressora térmica para o Full</h3></div><button class="hbtn" data-act="ajudax" aria-label="Fechar ajuda">×</button></div>
-  <p class="hint">Faça uma vez em cada computador. Depois é só escolher o papel <b>Full</b> na hora de imprimir.</p>
-  <ol class="ajs">${AJUDA.map(([t,d,img],i)=>`<li><div class="ajn">${i+1}</div><div class="ajt"><b>${t}</b><p>${d}</p>${img?`<img src="/ajuda/${img}.jpg" alt="${esc(t)}" loading="lazy">`:""}</div></li>`).join("")}</ol>
-  <div class="acts"><button class="btn btn-dark" data-act="ajudax">Entendi</button></div></div></div>`; }
+function ajudaCorpo(){ const n=AJUDA.length, i=Math.max(0,Math.min(n-1,DB.ajI||0)); const [t,d,img]=AJUDA[i];
+  return `<div class="mdlh"><div><span class="eyebrow">Ajuda · etapa ${i+1} de ${n}</span><h3 id="ajT">Configurar a impressora térmica para o Full</h3></div><button class="hbtn" data-act="ajudax" aria-label="Fechar ajuda">×</button></div>
+  <ol class="ajstep" aria-label="Etapas">${AJUDA.map(([tt],k)=>`<li class="${k<i?"ok":k===i?"cur":""}"><button data-act="aj-ir" data-i="${k}" aria-label="Etapa ${k+1}: ${esc(tt)}${k<i?" (concluída)":""}" ${k===i?'aria-current="step"':""}><span class="ajdot">${k<i?"✓":k+1}</span><span class="ajlb">${esc(tt)}</span></button></li>`).join("")}</ol>
+  <div class="ajslide"><b class="ajtt">${i+1}. ${t}</b><p>${d}</p>${img?`<img src="/ajuda/${img}.jpg" alt="${esc(t)}">`:""}</div>
+  <div class="ajnav"><button class="btn" data-act="aj-ir" data-i="${i-1}" ${i===0?"disabled":""}>‹ Anterior</button>
+    ${i<n-1?`<button class="btn btn-dark" data-act="aj-ir" data-i="${i+1}">Feito, próxima etapa ›</button>`:`<button class="btn btn-dark" data-act="ajudax">✓ Concluir configuração</button>`}</div>`; }
+function ajudaHtml(){ return `<div class="mdl" data-act="ajudax"><div class="mdlc" role="dialog" aria-modal="true" aria-labelledby="ajT" data-stop="1">${ajudaCorpo()}</div></div>`; }
+function ajudaUpd(){ const c=document.querySelector(".mdlc"); if(c){ c.innerHTML=ajudaCorpo(); const f=c.querySelector(".ajnav .btn-dark")||c.querySelector(".hbtn"); if(f) f.focus(); } }
 const qrU=()=>DB.qrU&&DB.users[DB.qrU]?DB.qrU:DB.me;
 async function qrLink(envio,login,novo){ const k=envio+"|"+login; if(novo||!DB.qrTok[k]){ const r=await api("qr",{envio,login,novo:!!novo}); DB.qrTok[k]=r.token; } return `${APP_URL}#s-${DB.qrTok[k]}`; }
 async function drawQR(e){

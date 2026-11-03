@@ -5,7 +5,8 @@ rota();
 function render(){ render0(); const m=document.querySelector(".mdl");
   if(DB.ajuda&&!DB.qr){ if(!m){ document.body.insertAdjacentHTML("beforeend",ajudaHtml()); document.body.style.overflow="hidden"; const x=document.querySelector(".mdl .hbtn"); if(x) x.focus(); } }
   else if(m){ m.remove(); document.body.style.overflow=""; const h=document.querySelector('[data-act="ajuda"]'); if(h) h.focus(); } }
-document.addEventListener("keydown",ev=>{ if(ev.key==="Escape"&&DB.ajuda){ DB.ajuda=false; render(); } });
+document.addEventListener("keydown",ev=>{ if(!DB.ajuda) return; if(ev.key==="Escape"){ DB.ajuda=false; render(); }
+  else if(ev.key==="ArrowRight"||ev.key==="ArrowLeft"){ DB.ajI=Math.max(0,Math.min(AJUDA.length-1,(DB.ajI||0)+(ev.key==="ArrowRight"?1:-1))); ajudaUpd(); } });
 function render0(){
   if(DB.qr){ if(!DB.carregado) return renderCarregando(); return renderPhoneFull(); }
   if(!PREF.token||!DB.me) return renderLogin();
@@ -95,7 +96,8 @@ document.addEventListener("click",ev=>{
     case "qrNovo": acao(async()=>{ await qrLink(e.id,qrU(),true); },"Link anterior cancelado. Novo QR gerado."); return;
     case "qrCopiar": qrLink(e.id,qrU()).then(l=>navigator.clipboard.writeText(l)).then(()=>toast("Link copiado."),x=>toast(x?.message||"Não deu para copiar.")); return;
     case "lbl": DB.lbl=b.dataset.cod; DB.lmsg=null; if(sepOf(e,DB.lbl).status==="impresso") FOCUS="lscan"; break;
-    case "ajuda": DB.ajuda=true; break;
+    case "ajuda": DB.ajuda=true; DB.ajI=0; break;
+    case "aj-ir": DB.ajI=Math.max(0,Math.min(AJUDA.length-1,+b.dataset.i)); ajudaUpd(); return;
     case "ajudax": if(ev.target.closest("[data-stop]")&&!ev.target.closest('button[data-act="ajudax"]')) return; DB.ajuda=false; break;
     case "lblx": DB.lbl=null; DB.lmsg=null; break;
     case "imprimir": { const cod=b.dataset.cod, inv=b.dataset.inv||null; const it0=itens(e).find(i=>i.cod===cod); const a0=inv&&it0?it0.anuncios.find(x=>x.inv===inv):null;
