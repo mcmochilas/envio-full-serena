@@ -297,6 +297,13 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:10
 .ajslide p{margin:0 0 6px;color:var(--ink2)}.ajtt{font-size:17px}
 .ajslide img{display:block;max-width:100%;max-height:320px;align-self:center;border-radius:10px;border:1px solid var(--line)}
 .ajnav{display:flex;justify-content:space-between;gap:10px}
+.anv{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
+.pen{border:0;background:none;color:var(--muted);padding:4px;border-radius:6px;display:inline-flex;opacity:.55}
+tr:hover .pen,.pen:focus-visible{opacity:1}.pen:hover{color:var(--petrol);background:var(--accent-soft);opacity:1}
+.anEd{display:inline-flex;gap:4px;align-items:center;justify-content:flex-end}
+.anEd .inp{width:84px;height:34px;padding:0 8px;font-size:15px;text-align:right;border-radius:8px}
+.ebtn{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-weight:700}
+.ebtn.ok{background:var(--petrol);border-color:var(--petrol);color:#fff}
 </style>
 
 </head>
@@ -585,6 +592,11 @@ function delBtn(e){ const pend=DB.delPend&&DB.delPend.id===e.id&&Date.now()-DB.d
   const aviso=e.status==="rascunho"?"":e.status==="liberado"?" A separação e as etiquetas já registradas serão perdidas.":" O histórico deste envio será apagado.";
   return pend?`<button class="xdel on" data-act="delenv" data-id="${e.id}" title="Confirmar exclusão do envio #${e.id}.${aviso}">${XSVG}<span>Excluir?</span></button>`
     :`<button class="xdel" data-act="delenv" data-id="${e.id}" title="Excluir envio #${e.id}" aria-label="Excluir envio #${e.id}">${XSVG}</button>`; }
+const LAPIS=`<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M11.2 2.3a1.5 1.5 0 0 1 2.1 0l.4.4a1.5 1.5 0 0 1 0 2.1L6 12.5 2.5 13.5l1-3.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+function anCel(e,a,mult){ const ed=DB.edAn; const txt=mult===1?"1 (unidade)":mult;
+  if(ed&&ed.id===e.id&&ed.inv===a.inv)
+    return `<form class="anEd" data-id="${e.id}" data-inv="${esc(a.inv)}"><input class="inp" id="anEdIn" type="number" min="1" max="999" step="1" value="${mult}" aria-label="Peças por kit do anúncio ${esc(a.inv)}"><button class="ebtn ok" type="submit" title="Salvar" aria-label="Salvar">✓</button><button class="ebtn" type="button" data-act="anEdX" title="Cancelar" aria-label="Cancelar">×</button></form>`;
+  return `<span class="anv">${txt}<button class="pen" data-act="anEd" data-id="${e.id}" data-inv="${esc(a.inv)}" title="Editar peças por kit" aria-label="Editar peças por kit do anúncio ${esc(a.inv)}">${LAPIS}</button></span>`; }
 function gEnviosList(){
   const F=DB.f||(DB.f={per:"todos",q:""}); const [a,b]=periodo(); const q=norm(F.q).trim();
   const lst=DB.envios.filter(e=>(e.criado||0)>=a&&(e.criado||0)<=b).map(e=>({e,m:achou(e,q)})).filter(x=>x.m!==null).sort((x,y)=>(y.e.criado||0)-(x.e.criado||0));
@@ -632,8 +644,8 @@ function gDet(e){
   ${Object.keys(e.manual||{}).length?`<div class="manbox"><div class="mhd">${LUPA} <b>Itens adicionados manualmente à pré-venda</b></div>
     ${Object.entries(e.manual).map(([cod,x])=>`<div class="mrow"><span><span class="mono">${cod}</span> · ${esc(nomeCod(cod))} · <b>+${x.qtd} peças</b><br><span class="muted">por ${esc(nomeU(x.por))} em ${esc(new Date(x.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))} · lembre de lançar também no ERP</span></span>${e.status!=="concluido"?`<button class="btn btn-sm" data-act="rmpre" data-id="${e.id}" data-cod="${cod}">Remover</button>`:""}</div>`).join("")}</div>`:""}
   <details class="oklist" ${DB.openAn===e.id?"open":""} data-an="${e.id}"><summary>Ver os ${e.anuncios.length} anúncios</summary>
-  <div class="tbox" style="border:1px solid var(--line2);margin-top:8px"><table class="t"><thead><tr><th>Anúncio</th><th>Título no ML</th><th class="r">Etiquetas</th><th>Produto ERP</th><th class="r">Peças</th></tr></thead><tbody>
-  ${(()=>{ const P=pager("an-"+e.id,e.anuncios.length,15); DB._p=P; return e.anuncios.slice(P.ini,P.fim).map(a=>{const v=V(a.inv);return `<tr class="${v.cod?"":"flag"}"><td class="mono">${esc(a.inv)}</td><td>${esc(a.titulo)}</td><td class="r num">${a.etiquetas}</td><td>${v.cod?`${v.cod} · ${esc(nomeCod(v.cod))}`:`<span class="tag tag-warn">sem vínculo</span>`}</td><td class="r num">${v.cod?a.etiquetas*v.mult:"—"}</td></tr>`;}).join(""); })()}
+  <div class="tbox" style="border:1px solid var(--line2);margin-top:8px"><table class="t"><thead><tr><th>Anúncio</th><th>Título no ML</th><th class="r">Etiquetas</th><th>Produto ERP</th><th class="r">Peças por kit</th><th class="r">Peças</th></tr></thead><tbody>
+  ${(()=>{ const P=pager("an-"+e.id,e.anuncios.length,15); DB._p=P; return e.anuncios.slice(P.ini,P.fim).map(a=>{const v=V(a.inv);return `<tr class="${v.cod?"":"flag"}"><td class="mono">${esc(a.inv)}</td><td>${esc(a.titulo)}</td><td class="r num">${a.etiquetas}</td><td>${v.cod?`${v.cod} · ${esc(nomeCod(v.cod))}`:`<span class="tag tag-warn">sem vínculo</span>`}</td><td class="r num">${v.cod?anCel(e,a,v.mult):"—"}</td><td class="r num">${v.cod?a.etiquetas*v.mult:"—"}</td></tr>`;}).join(""); })()}
   </tbody></table></div><div style="margin-top:8px">${DB._p.html}</div></details>
   ${e.status==="concluido"?`<p class="hint">Concluído pela expedição.</p>`:""}
   ${e.status==="rascunho"?`<div class="acts"><button class="lnkbtn" data-act="excluir" data-id="${e.id}" style="color:var(--err)">Excluir este rascunho</button></div>`:""}
@@ -911,10 +923,10 @@ function lblScan(e,code){
 /* celular: #s-<token> (gerado no servidor, vale só para um envio e uma pessoa); sem login */
 function rota(){ const m=location.hash.match(/^#s-([\w-]+)/); DB.qr=m?m[1]:null; if(!m){ DB.mobile=null; DB.mobileU=null; } }
 rota();
-function render(){ render0(); const m=document.querySelector(".mdl");
+function render(){ render0(); if(FOCUS==="anEdIn"){ const f=document.getElementById("anEdIn"); if(f){ f.focus(); f.select(); } } const m=document.querySelector(".mdl");
   if(DB.ajuda&&!DB.qr){ if(!m){ document.body.insertAdjacentHTML("beforeend",ajudaHtml()); document.body.style.overflow="hidden"; const x=document.querySelector(".mdl .hbtn"); if(x) x.focus(); } }
   else if(m){ m.remove(); document.body.style.overflow=""; const h=document.querySelector('[data-act="ajuda"]'); if(h) h.focus(); } }
-document.addEventListener("keydown",ev=>{ if(!DB.ajuda) return; if(ev.key==="Escape"){ DB.ajuda=false; render(); }
+document.addEventListener("keydown",ev=>{ if(ev.key==="Escape"&&DB.edAn&&ev.target.id==="anEdIn"){ DB.edAn=null; render(); return; } if(!DB.ajuda) return; if(ev.key==="Escape"){ DB.ajuda=false; render(); }
   else if(ev.key==="ArrowRight"||ev.key==="ArrowLeft"){ DB.ajI=Math.max(0,Math.min(AJUDA.length-1,(DB.ajI||0)+(ev.key==="ArrowRight"?1:-1))); ajudaUpd(); } });
 function render0(){
   if(DB.qr){ if(!DB.carregado) return renderCarregando(); return renderPhoneFull(); }
@@ -1008,6 +1020,8 @@ document.addEventListener("click",ev=>{
     case "ajuda": DB.ajuda=true; DB.ajI=0; break;
     case "aj-ir": DB.ajI=Math.max(0,Math.min(AJUDA.length-1,+b.dataset.i)); ajudaUpd(); return;
     case "ajudax": if(ev.target.closest("[data-stop]")&&!ev.target.closest('button[data-act="ajudax"]')) return; DB.ajuda=false; break;
+    case "anEd": DB.edAn={id:b.dataset.id,inv:b.dataset.inv}; FOCUS="anEdIn"; break;
+    case "anEdX": DB.edAn=null; break;
     case "lblx": DB.lbl=null; DB.lmsg=null; break;
     case "imprimir": { const cod=b.dataset.cod, inv=b.dataset.inv||null; const it0=itens(e).find(i=>i.cod===cod); const a0=inv&&it0?it0.anuncios.find(x=>x.inv===inv):null;
       const oq=a0?`${a0.etiquetas} etiquetas ${a0.mult===1?"de unidade":"de kit"} de ${nomeCod(cod)}`:`as etiquetas de ${nomeCod(cod)}`;
@@ -1046,6 +1060,10 @@ document.addEventListener("change",ev=>{ const t=ev.target;
 });
 document.addEventListener("submit",ev=>{
   const f=ev.target; const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur);
+  if(f.classList.contains("anEd")){ ev.preventDefault(); const inv=f.dataset.inv, mult=parseInt(f.querySelector("input").value,10), v=V(inv);
+    if(!(mult>=1)) return toast("Informe quantas peças vão em cada kit (1 = unidade).");
+    if(mult===v.mult){ DB.edAn=null; render(); return; }
+    acao(async()=>{ await api("vinc",{inv,cod:v.cod,mult}); DB.edAn=null; },`Anúncio ${inv}: ${mult===1?"vendido por unidade":"kit com "+mult+" peças"}.`); return; }
   if(f.id==="lblForm"){ ev.preventDefault(); lblScan(e,$("#lscan").value); FOCUS=DB.lbl?"lscan":null; render(); }
   else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; phScan(e,u,f.querySelector("input").value); FOCUS=`pscan-${u}`; render(); }
   else if(f.id==="uForm"){ ev.preventDefault(); const d={login:$("#uLogin").value.trim().toLowerCase(),nome:$("#uNome").value.trim(),role:$("#uRole").value,pin:$("#uPin").value.trim(),ativo:$("#uAtivo").checked};
@@ -1060,6 +1078,7 @@ document.addEventListener("keydown",ev=>{ const t=ev.target; if(t.dataset?.vq===
   else if(ev.key==="Escape"){ t.nextElementSibling.hidden=true; } });
 window.addEventListener("hashchange",()=>{ rota(); DB.carregado=false; iniciar(); });
 iniciar();
+document.addEventListener("toggle",ev=>{ const d=ev.target; if(d.dataset&&d.dataset.an!==undefined){ if(d.open) DB.openAn=d.dataset.an; else if(DB.openAn===d.dataset.an) DB.openAn=null; } },true);
 
 </script>
 </body>

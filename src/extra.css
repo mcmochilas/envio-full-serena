@@ -151,3 +151,10 @@ html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:10
 .ajslide p{margin:0 0 6px;color:var(--ink2)}.ajtt{font-size:17px}
 .ajslide img{display:block;max-width:100%;max-height:320px;align-self:center;border-radius:10px;border:1px solid var(--line)}
 .ajnav{display:flex;justify-content:space-between;gap:10px}
+.anv{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}
+.pen{border:0;background:none;color:var(--muted);padding:4px;border-radius:6px;display:inline-flex;opacity:.55}
+tr:hover .pen,.pen:focus-visible{opacity:1}.pen:hover{color:var(--petrol);background:var(--accent-soft);opacity:1}
+.anEd{display:inline-flex;gap:4px;align-items:center;justify-content:flex-end}
+.anEd .inp{width:84px;height:34px;padding:0 8px;font-size:15px;text-align:right;border-radius:8px}
+.ebtn{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-weight:700}
+.ebtn.ok{background:var(--petrol);border-color:var(--petrol);color:#fff}

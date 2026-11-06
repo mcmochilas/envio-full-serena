@@ -2,10 +2,10 @@
 /* celular: #s-<token> (gerado no servidor, vale só para um envio e uma pessoa); sem login */
 function rota(){ const m=location.hash.match(/^#s-([\w-]+)/); DB.qr=m?m[1]:null; if(!m){ DB.mobile=null; DB.mobileU=null; } }
 rota();
-function render(){ render0(); const m=document.querySelector(".mdl");
+function render(){ render0(); if(FOCUS==="anEdIn"){ const f=document.getElementById("anEdIn"); if(f){ f.focus(); f.select(); } } const m=document.querySelector(".mdl");
   if(DB.ajuda&&!DB.qr){ if(!m){ document.body.insertAdjacentHTML("beforeend",ajudaHtml()); document.body.style.overflow="hidden"; const x=document.querySelector(".mdl .hbtn"); if(x) x.focus(); } }
   else if(m){ m.remove(); document.body.style.overflow=""; const h=document.querySelector('[data-act="ajuda"]'); if(h) h.focus(); } }
-document.addEventListener("keydown",ev=>{ if(!DB.ajuda) return; if(ev.key==="Escape"){ DB.ajuda=false; render(); }
+document.addEventListener("keydown",ev=>{ if(ev.key==="Escape"&&DB.edAn&&ev.target.id==="anEdIn"){ DB.edAn=null; render(); return; } if(!DB.ajuda) return; if(ev.key==="Escape"){ DB.ajuda=false; render(); }
   else if(ev.key==="ArrowRight"||ev.key==="ArrowLeft"){ DB.ajI=Math.max(0,Math.min(AJUDA.length-1,(DB.ajI||0)+(ev.key==="ArrowRight"?1:-1))); ajudaUpd(); } });
 function render0(){
   if(DB.qr){ if(!DB.carregado) return renderCarregando(); return renderPhoneFull(); }
@@ -99,6 +99,8 @@ document.addEventListener("click",ev=>{
     case "ajuda": DB.ajuda=true; DB.ajI=0; break;
     case "aj-ir": DB.ajI=Math.max(0,Math.min(AJUDA.length-1,+b.dataset.i)); ajudaUpd(); return;
     case "ajudax": if(ev.target.closest("[data-stop]")&&!ev.target.closest('button[data-act="ajudax"]')) return; DB.ajuda=false; break;
+    case "anEd": DB.edAn={id:b.dataset.id,inv:b.dataset.inv}; FOCUS="anEdIn"; break;
+    case "anEdX": DB.edAn=null; break;
     case "lblx": DB.lbl=null; DB.lmsg=null; break;
     case "imprimir": { const cod=b.dataset.cod, inv=b.dataset.inv||null; const it0=itens(e).find(i=>i.cod===cod); const a0=inv&&it0?it0.anuncios.find(x=>x.inv===inv):null;
       const oq=a0?`${a0.etiquetas} etiquetas ${a0.mult===1?"de unidade":"de kit"} de ${nomeCod(cod)}`:`as etiquetas de ${nomeCod(cod)}`;
@@ -137,6 +139,10 @@ document.addEventListener("change",ev=>{ const t=ev.target;
 });
 document.addEventListener("submit",ev=>{
   const f=ev.target; const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur);
+  if(f.classList.contains("anEd")){ ev.preventDefault(); const inv=f.dataset.inv, mult=parseInt(f.querySelector("input").value,10), v=V(inv);
+    if(!(mult>=1)) return toast("Informe quantas peças vão em cada kit (1 = unidade).");
+    if(mult===v.mult){ DB.edAn=null; render(); return; }
+    acao(async()=>{ await api("vinc",{inv,cod:v.cod,mult}); DB.edAn=null; },`Anúncio ${inv}: ${mult===1?"vendido por unidade":"kit com "+mult+" peças"}.`); return; }
   if(f.id==="lblForm"){ ev.preventDefault(); lblScan(e,$("#lscan").value); FOCUS=DB.lbl?"lscan":null; render(); }
   else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; phScan(e,u,f.querySelector("input").value); FOCUS=`pscan-${u}`; render(); }
   else if(f.id==="uForm"){ ev.preventDefault(); const d={login:$("#uLogin").value.trim().toLowerCase(),nome:$("#uNome").value.trim(),role:$("#uRole").value,pin:$("#uPin").value.trim(),ativo:$("#uAtivo").checked};
@@ -151,3 +157,4 @@ document.addEventListener("keydown",ev=>{ const t=ev.target; if(t.dataset?.vq===
   else if(ev.key==="Escape"){ t.nextElementSibling.hidden=true; } });
 window.addEventListener("hashchange",()=>{ rota(); DB.carregado=false; iniciar(); });
 iniciar();
+document.addEventListener("toggle",ev=>{ const d=ev.target; if(d.dataset&&d.dataset.an!==undefined){ if(d.open) DB.openAn=d.dataset.an; else if(DB.openAn===d.dataset.an) DB.openAn=null; } },true);

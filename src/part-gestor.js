@@ -32,6 +32,11 @@ function delBtn(e){ const pend=DB.delPend&&DB.delPend.id===e.id&&Date.now()-DB.d
   const aviso=e.status==="rascunho"?"":e.status==="liberado"?" A separação e as etiquetas já registradas serão perdidas.":" O histórico deste envio será apagado.";
   return pend?`<button class="xdel on" data-act="delenv" data-id="${e.id}" title="Confirmar exclusão do envio #${e.id}.${aviso}">${XSVG}<span>Excluir?</span></button>`
     :`<button class="xdel" data-act="delenv" data-id="${e.id}" title="Excluir envio #${e.id}" aria-label="Excluir envio #${e.id}">${XSVG}</button>`; }
+const LAPIS=`<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M11.2 2.3a1.5 1.5 0 0 1 2.1 0l.4.4a1.5 1.5 0 0 1 0 2.1L6 12.5 2.5 13.5l1-3.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+function anCel(e,a,mult){ const ed=DB.edAn; const txt=mult===1?"1 (unidade)":mult;
+  if(ed&&ed.id===e.id&&ed.inv===a.inv)
+    return `<form class="anEd" data-id="${e.id}" data-inv="${esc(a.inv)}"><input class="inp" id="anEdIn" type="number" min="1" max="999" step="1" value="${mult}" aria-label="Peças por kit do anúncio ${esc(a.inv)}"><button class="ebtn ok" type="submit" title="Salvar" aria-label="Salvar">✓</button><button class="ebtn" type="button" data-act="anEdX" title="Cancelar" aria-label="Cancelar">×</button></form>`;
+  return `<span class="anv">${txt}<button class="pen" data-act="anEd" data-id="${e.id}" data-inv="${esc(a.inv)}" title="Editar peças por kit" aria-label="Editar peças por kit do anúncio ${esc(a.inv)}">${LAPIS}</button></span>`; }
 function gEnviosList(){
   const F=DB.f||(DB.f={per:"todos",q:""}); const [a,b]=periodo(); const q=norm(F.q).trim();
   const lst=DB.envios.filter(e=>(e.criado||0)>=a&&(e.criado||0)<=b).map(e=>({e,m:achou(e,q)})).filter(x=>x.m!==null).sort((x,y)=>(y.e.criado||0)-(x.e.criado||0));
@@ -79,8 +84,8 @@ function gDet(e){
   ${Object.keys(e.manual||{}).length?`<div class="manbox"><div class="mhd">${LUPA} <b>Itens adicionados manualmente à pré-venda</b></div>
     ${Object.entries(e.manual).map(([cod,x])=>`<div class="mrow"><span><span class="mono">${cod}</span> · ${esc(nomeCod(cod))} · <b>+${x.qtd} peças</b><br><span class="muted">por ${esc(nomeU(x.por))} em ${esc(new Date(x.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))} · lembre de lançar também no ERP</span></span>${e.status!=="concluido"?`<button class="btn btn-sm" data-act="rmpre" data-id="${e.id}" data-cod="${cod}">Remover</button>`:""}</div>`).join("")}</div>`:""}
   <details class="oklist" ${DB.openAn===e.id?"open":""} data-an="${e.id}"><summary>Ver os ${e.anuncios.length} anúncios</summary>
-  <div class="tbox" style="border:1px solid var(--line2);margin-top:8px"><table class="t"><thead><tr><th>Anúncio</th><th>Título no ML</th><th class="r">Etiquetas</th><th>Produto ERP</th><th class="r">Peças</th></tr></thead><tbody>
-  ${(()=>{ const P=pager("an-"+e.id,e.anuncios.length,15); DB._p=P; return e.anuncios.slice(P.ini,P.fim).map(a=>{const v=V(a.inv);return `<tr class="${v.cod?"":"flag"}"><td class="mono">${esc(a.inv)}</td><td>${esc(a.titulo)}</td><td class="r num">${a.etiquetas}</td><td>${v.cod?`${v.cod} · ${esc(nomeCod(v.cod))}`:`<span class="tag tag-warn">sem vínculo</span>`}</td><td class="r num">${v.cod?a.etiquetas*v.mult:"—"}</td></tr>`;}).join(""); })()}
+  <div class="tbox" style="border:1px solid var(--line2);margin-top:8px"><table class="t"><thead><tr><th>Anúncio</th><th>Título no ML</th><th class="r">Etiquetas</th><th>Produto ERP</th><th class="r">Peças por kit</th><th class="r">Peças</th></tr></thead><tbody>
+  ${(()=>{ const P=pager("an-"+e.id,e.anuncios.length,15); DB._p=P; return e.anuncios.slice(P.ini,P.fim).map(a=>{const v=V(a.inv);return `<tr class="${v.cod?"":"flag"}"><td class="mono">${esc(a.inv)}</td><td>${esc(a.titulo)}</td><td class="r num">${a.etiquetas}</td><td>${v.cod?`${v.cod} · ${esc(nomeCod(v.cod))}`:`<span class="tag tag-warn">sem vínculo</span>`}</td><td class="r num">${v.cod?anCel(e,a,v.mult):"—"}</td><td class="r num">${v.cod?a.etiquetas*v.mult:"—"}</td></tr>`;}).join(""); })()}
   </tbody></table></div><div style="margin-top:8px">${DB._p.html}</div></details>
   ${e.status==="concluido"?`<p class="hint">Concluído pela expedição.</p>`:""}
   ${e.status==="rascunho"?`<div class="acts"><button class="lnkbtn" data-act="excluir" data-id="${e.id}" style="color:var(--err)">Excluir este rascunho</button></div>`:""}
