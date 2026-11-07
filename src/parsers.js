@@ -7,7 +7,7 @@ function parseZPL(text){
   return [...map.values()];
 }
 function sugestaoVinc(a){
-  const k=(a.titulo.match(/^(\d+)x\s/i)||[])[1]; const s=a.ref.match(/^SKU: (\d+)(?:-0*(\d+))?/);
+  const k=(a.titulo.match(/^(?:kit\s*(?:com\s*)?)?(\d+)\s*(?:x|un\.?|unid\w*|p[çc]s?)\s/i)||a.titulo.match(/\bkit\s*(?:com\s*)?(\d+)\s*(?:x|un\.?|unid\w*|p[çc]s?)?\s/i)||[])[1]; const s=a.ref.match(/^SKU: (\d+)(?:-0*(\d+))?/);
   const mult=k?+k:(s&&s[2]?+s[2]:1);
   return {cod:s?s[1]:"",mult};
 }
