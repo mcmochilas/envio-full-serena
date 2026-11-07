@@ -1,14 +1,14 @@
 /* ===== GESTOR ===== */
-const TABS=[["envios","Envios"],["vinculos","Vínculos"],["usuarios","Usuários"]];
+const TABS=[["envios","Envios"],["estoque","Estoque Full"],["vinculos","Vínculos"],["usuarios","Usuários"]];
 function allAnuncios(){ return [...new Map(DB.envios.flatMap(e=>e.anuncios).map(a=>[a.inv,a])).values()]; }
 function renderGestor(){
   const pend=allAnuncios().filter(a=>!V(a.inv).cod).length;
   $("#app").innerHTML=`<div class="ad"><nav aria-label="Seções">
     <div style="padding:0 8px;display:flex;flex-direction:column;gap:8px"><img src="${LOGO.escuro}" alt="Serena Puxadores" style="width:150px;height:auto;display:block"><small style="font-family:var(--display);font-weight:700;letter-spacing:.2em;text-transform:uppercase;font-size:10px;color:var(--gold)">Gestão Envios Full</small></div>
-    <div style="display:flex;flex-direction:column;gap:4px">${TABS.map(([k,l])=>{ const b=k==="vinculos"?pend:DB.envios.filter(e=>e.status==="rascunho").length;
+    <div style="display:flex;flex-direction:column;gap:4px">${TABS.map(([k,l])=>{ const b=k==="vinculos"?pend:k==="envios"?DB.envios.filter(e=>e.status==="rascunho").length:0;
       return `<button class="navb" data-act="tab" data-t="${k}" aria-current="${DB.tab===k?"page":"false"}"><span>${l}</span>${b?`<span class="badge">${b}</span>`:""}</button>`; }).join("")}</div>
     <div class="navfoot"><button class="navlink" data-act="to-exp">Abrir app da expedição</button><button class="navlink" data-act="logout">Sair</button></div>
-  </nav><main>${DB.tab==="vinculos"?gVinc():DB.tab==="usuarios"?gUsers():gEnvios()}</main></div>`;
+  </nav><main>${DB.tab==="vinculos"?gVinc():DB.tab==="usuarios"?gUsers():DB.tab==="estoque"?gEstoque():gEnvios()}</main></div>`;
 }
 const PER=[["todos","Todos"],["hoje","Hoje"],["7","7 dias"],["30","30 dias"],["mes","Este mês"],["custom","Personalizado"]];
 const dfmt=t=>new Date(t).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"2-digit"});

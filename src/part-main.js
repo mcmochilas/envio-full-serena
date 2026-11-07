@@ -27,7 +27,7 @@ function renderLogin(err){
   $("#lgForm").onsubmit=async e=>{ e.preventDefault(); const bt=e.target.querySelector("button"); bt.disabled=true; bt.textContent="Entrando…";
     tocaSomSerena();
     try{ const r=await api("login",{login:$("#lgU").value.trim().toLowerCase(),pin:$("#lgP").value}); PREF.token=r.token; DB.me=r.me.login; DB.meObj=r.me; DB.asExp=false; DB.cur=null; save();
-      await carregar(true); render(); }
+      await carregar(true); render(); mlPendente(); }
     catch(x){ renderLogin(x.message); } };
 }
 async function iniciar(){
@@ -35,11 +35,11 @@ async function iniciar(){
     try{ await carregar(true); DB.mobile=DB.meObj.qrEnvio; DB.mobileU=DB.meObj.login; }catch(x){ DB.carregado=true; DB.mobile="__x"; DB.mobileU=null; }
     render(); return; }
   if(PREF.token){ renderCarregando(); try{ await carregar(true); }catch(x){ PREF.token=null; save(); } }
-  render();
+  render(); mlPendente();
 }
 
 /* ---------- atualização automática (outras pessoas no mesmo envio) ---------- */
-function digitando(){ const a=document.activeElement; return a && (a.id==="fq"||a.dataset?.vq!==undefined||a.tagName==="TEXTAREA"||(a.closest&&a.closest("#uForm"))||a.type==="date"||a.type==="number"); }
+function digitando(){ const a=document.activeElement; return a && (a.id==="fq"||a.id==="mlQ"||a.dataset?.vq!==undefined||a.tagName==="TEXTAREA"||(a.closest&&a.closest("#uForm"))||a.type==="date"||a.type==="number"); }
 setInterval(async()=>{
   if(document.hidden||ocupado||PEND>0||!DB.carregado||(!PREF.token&&!DB.qr)||DB.mobile==="__x") return;
   try{ const mudou=await carregar(false); if(mudou&&!digitando()){ const a=document.activeElement, id=a?.id, val=a?.value; render(); if(id){ const n=document.getElementById(id); if(n){ n.focus(); if(val&&n.value!==undefined&&!n.value) n.value=val; } } } }catch(e){}
@@ -82,7 +82,14 @@ document.addEventListener("click",ev=>{
   const sep=(acaoNome,cod,extra={},msg="")=>api("sep",{envio:e.id,cod,acao:acaoNome,msg,...extra});
   switch(act){
     case "logout": camDesliga(); api("logout").catch(()=>{}); PREF.token=null; DB.me=null; DB.meObj=null; DB.carregado=false; DB.cur=null; DB.lbl=null; break;
-    case "tab": DB.tab=b.dataset.t; DB.uEdit=null; break;
+    case "tab": DB.tab=b.dataset.t; DB.uEdit=null; if(DB.tab==="estoque"&&DB.ml) mlCarregar(); break;
+    case "ml-conectar": mlConectar(); return;
+    case "ml-recarregar": DB.mlErro=null; DB.ml=null; break;
+    case "ml-sync": DB.mlSync=true; render(); api("ml_sync",{}).then(r=>toast(`Sincronizado · ${r.anuncios} anúncios`)).catch(x=>toast(x.message)).finally(async()=>{ DB.mlSync=false; await mlCarregar(); }); return;
+    case "ml-dias": if(b.dataset.d==="custom"){ DB.mlCustom=true; break; } DB.mlCustom=false; DB.mlDias=+b.dataset.d; DB.pg.mla=1; mlCarregar(); break;
+    case "ml-visao": DB.mlModelo=b.dataset.v==="mod"; break;
+    case "ml-hist": { const inv=b.dataset.inv; if(DB.mlInv===inv){ DB.mlInv=null; break; } DB.mlInv=inv; DB.mlHist=null;
+      api("ml_hist",{inv}).then(r=>{ DB.mlHist={inv,ops:r.ops||[]}; render(); }).catch(x=>toast(x.message)); break; }
     case "vpg": DB.vpg=+b.dataset.p; break;
     case "pg": DB.pg[b.dataset.k]=+b.dataset.p; if(b.dataset.k.startsWith("an-")) DB.openAn=b.dataset.k.slice(3); break;
     case "per": DB.f.per=b.dataset.p; DB.pg.envios=1; break;
@@ -155,6 +162,8 @@ document.addEventListener("change",ev=>{ const t=ev.target;
   if(t.dataset.vm!==undefined){ const inv=t.dataset.vm; acao(()=>api("vinc",{inv,cod:V(inv).cod,mult:Math.max(1,parseInt(t.value,10)||1)}),"Vínculo salvo."); }
   else if(t.id==="snd"){ DB.mute=!t.checked; save(); }
   else if(t.id==="qrsel"){ DB.qrU=t.value; render(); }
+  else if(t.id==="fCusto"){ lerCustos(t); }
+  else if(t.id==="mlOrd"){ DB.mlOrd=t.value; render(); }
   else if(t.id==="fEtq"||t.id==="fPdf"){ lerArquivos(t); }
   else if(t.id==="fUpEtq"||t.id==="fUpPdf"){ atualizarEnvio(t); }
   else if(t.id==="fde"||t.id==="fate"){ DB.f[t.id==="fde"?"de":"ate"]=t.value; DB.pg.envios=1; $("#elist").innerHTML=gEnviosList(); }
@@ -165,6 +174,7 @@ document.addEventListener("submit",ev=>{
     if(!(mult>=1)) return toast("Quantidade inválida");
     if(mult===v.mult){ DB.edAn=null; render(); return; }
     acao(async()=>{ await api("vinc",{inv,cod:v.cod,mult}); DB.edAn=null; },"Peças por kit atualizadas"); return; }
+  if(f.id==="mlDiasF"){ ev.preventDefault(); const d=Math.min(365,Math.max(1,parseInt($("#mlDias").value,10)||30)); DB.mlDias=d; mlCarregar(); return; }
   if(f.id==="lblForm"){ ev.preventDefault(); lblScan(e,$("#lscan").value); FOCUS=DB.lbl?"lscan":null; render(); }
   else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; clearTimeout(COL_T); phScan(e,u,f.querySelector("input").value); FOCUS=f.dataset.modo==="camera"&&!DB.digitar?null:`pscan-${u}`; render(); }
   else if(f.id==="uForm"){ ev.preventDefault(); const d={login:$("#uLogin").value.trim().toLowerCase(),nome:$("#uNome").value.trim(),role:$("#uRole").value,modo:$("#uModo").value,pin:$("#uPin").value.trim(),ativo:$("#uAtivo").checked};
@@ -172,6 +182,7 @@ document.addEventListener("submit",ev=>{
 });
 document.addEventListener("focusin",ev=>{ if(ev.target.dataset?.vq!==undefined){ ev.target.select(); comboBusca(ev.target); } });
 document.addEventListener("input",ev=>{ if(ev.target.dataset?.vq!==undefined) comboBusca(ev.target);
+  if(ev.target.id==="mlQ"){ DB.mlQ=ev.target.value; DB.pg.mla=1; DB.pg.mlm=1; const pos=ev.target.selectionStart; render(); const n=$("#mlQ"); if(n){ n.focus(); n.setSelectionRange(pos,pos); } return; }
   if(ev.target.id==="fq"){ DB.f.q=ev.target.value; DB.pg.envios=1; $("#elist").innerHTML=gEnviosList(); } });
 document.addEventListener("keydown",ev=>{ const t=ev.target; if(t.dataset?.vq===undefined) return; const opts=[...t.nextElementSibling.querySelectorAll(".copt")]; let i=opts.findIndex(o=>o.classList.contains("on"));
   if(ev.key==="ArrowDown"||ev.key==="ArrowUp"){ ev.preventDefault(); if(!opts.length) return; opts[i]?.classList.remove("on"); i=(i+(ev.key==="ArrowDown"?1:-1)+opts.length)%opts.length; opts[i].classList.add("on"); opts[i].scrollIntoView({block:"nearest"}); }

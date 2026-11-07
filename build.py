@@ -6,7 +6,7 @@ base = open(S + 'base.css').read().replace('</style>', open(S + 'extra.css').rea
 logo = 'const LOGO = {claro:"/logo-claro.png", escuro:"/logo-escuro.png"};'
 js = (open(S + 'part-core.js').read().replace('/*LOGO*/', logo)
       + open(S + 'parsers.js').read().split('if(typeof module')[0]
-      + ''.join(open(S + f).read() for f in ['part-map.js', 'part-label.js', 'part-som.js', 'part-gestor.js', 'part-exp.js', 'part-main.js']))
+      + ''.join(open(S + f).read() for f in ['part-map.js', 'part-label.js', 'part-som.js', 'part-gestor.js', 'part-estoque.js', 'part-exp.js', 'part-main.js']))
 html = f'''<!DOCTYPE html>
 <html lang="pt-BR">
 <head>

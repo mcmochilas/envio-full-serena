@@ -16,7 +16,8 @@ const rnd = (n: number) => [...crypto.getRandomValues(new Uint8Array(n))].map(b 
 type Me = { login: string; nome: string; role: string; qrEnvio?: string };
 
 async function quem(req: Request): Promise<Me | null> {
-  const t = req.headers.get("x-full-token"), qr = req.headers.get("x-full-qr");
+  const t = req.headers.get("x-full-token"), qr = req.headers.get("x-full-qr"), int = req.headers.get("x-full-int");
+  if (int) { const a = await mlAuth(); return a?.cron_token && a.cron_token === int ? { login: "sistema", nome: "Sincronização automática", role: "sistema" } : null; }
   if (t) {
     const s = await q(db.from("full_sessions").select("login,expira").eq("token", t).maybeSingle());
     if (!s || new Date(s.expira) < new Date()) return null;
@@ -37,6 +38,114 @@ async function quem(req: Request): Promise<Me | null> {
 }
 const log = (envio: string, msg: string) => db.from("full_log").insert({ envio, msg: String(msg).slice(0, 300) });
 const toque = (id: string) => db.from("full_envios").update({ updated_at: new Date().toISOString() }).eq("id", id);
+
+// ===== Mercado Livre (estoque no Full) =====
+const ML = "https://api.mercadolibre.com";
+const ML_ID = Deno.env.get("ML_CLIENT_ID") || "770978757588091";
+const ML_REDIR = "https://envio-full-serena.vercel.app/";
+const espera = (ms: number) => new Promise((z) => setTimeout(z, ms));
+async function mlAuth() { return await q(db.from("full_ml_auth").select("*").eq("id", 1).maybeSingle()); }
+async function mlOauth(body: Record<string, string>) {
+  const sec = Deno.env.get("ML_CLIENT_SECRET");
+  must(sec, "Falta cadastrar a ML_CLIENT_SECRET nos Secrets das Edge Functions do Supabase.", 500);
+  const r = await fetch(`${ML}/oauth/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+    body: new URLSearchParams({ client_id: ML_ID, client_secret: sec!, ...body }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Erro(`Mercado Livre recusou a autorização: ${j.message || j.error || r.status}`, 400);
+  return { access_token: j.access_token, refresh_token: j.refresh_token, expira: new Date(Date.now() + (j.expires_in || 21600) * 1000).toISOString(), user_id: j.user_id };
+}
+async function mlToken() {
+  const a = await mlAuth(); must(a?.refresh_token, "Conecte o Mercado Livre primeiro.", 400);
+  if (a.access_token && new Date(a.expira).getTime() > Date.now() + 120000) return a;
+  try {
+    const t = await mlOauth({ grant_type: "refresh_token", refresh_token: a.refresh_token });
+    const n = { access_token: t.access_token, refresh_token: t.refresh_token || a.refresh_token, expira: t.expira, msg: null, updated_at: new Date().toISOString() };
+    await q(db.from("full_ml_auth").update(n).eq("id", 1)); return { ...a, ...n };
+  } catch (e) {
+    await db.from("full_ml_auth").update({ msg: "A conexão com o Mercado Livre expirou. Conecte de novo." }).eq("id", 1); throw e;
+  }
+}
+async function mlGet(a: any, path: string) {
+  for (let t = 0; t < 4; t++) {
+    const r = await fetch(ML + path, { headers: { authorization: `Bearer ${a.access_token}`, accept: "application/json" } });
+    if (r.status === 429 || r.status >= 500) { await espera(1200 * (t + 1)); continue; }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Erro(`Mercado Livre (${r.status}): ${j.message || path}`, 502);
+    return j;
+  }
+  throw new Erro("O Mercado Livre limitou as consultas. Tente de novo em 1 minuto.", 429);
+}
+async function emLotes<T>(xs: T[], n: number, fn: (x: T) => Promise<void>) { for (let i = 0; i < xs.length; i += n) await Promise.all(xs.slice(i, i + n).map(fn)); }
+const multTitulo = (t: string) => { const m = t.match(/^(?:kit\s*(?:com\s*)?)?(\d+)\s*(?:x|un\.?|unid\w*|p[çc]s?)\s/i) || t.match(/\bkit\s*(?:com\s*)?(\d+)\s*(?:x|un\.?|unid\w*|p[çc]s?)?\s/i); return m ? Math.max(1, +m[1]) : 1; };
+
+async function mlSync(diasHist = 0) {
+  const a = await mlToken();
+  // 1) anúncios com logística Full
+  let ids: string[] = []; let scroll = "";
+  for (let i = 0; i < 60; i++) {
+    const j = await mlGet(a, `/users/${a.user_id}/items/search?logistic_type=fulfillment&search_type=scan&limit=100${scroll ? `&scroll_id=${scroll}` : ""}`);
+    ids.push(...(j.results || [])); scroll = j.scroll_id; if (!(j.results || []).length || !scroll) break;
+  }
+  ids = [...new Set(ids)];
+  const linhas: any[] = [];
+  for (let i = 0; i < ids.length; i += 20) {
+    const r = await mlGet(a, `/items?ids=${ids.slice(i, i + 20).join(",")}&attributes=id,title,inventory_id,status,seller_custom_field,attributes,variations`);
+    for (const x of r) { const it = x.body || {}; if (x.code !== 200) continue;
+      const skuAttr = (it.attributes || []).find((t: any) => t.id === "SELLER_SKU")?.value_name;
+      const base = { item_id: it.id, titulo: it.title, status: it.status, sku: it.seller_custom_field || skuAttr || "" };
+      if (it.inventory_id) linhas.push({ ...base, inv: it.inventory_id });
+      for (const v of it.variations || []) if (v.inventory_id) linhas.push({ ...base, inv: v.inventory_id });
+    }
+  }
+  // 2) estoque de cada anúncio no Full
+  await emLotes(linhas, 6, async (l) => {
+    const st = await mlGet(a, `/inventories/${l.inv}/stock/fulfillment`).catch(() => null);
+    l.total = st?.total ?? 0; l.disponivel = st?.available_quantity ?? 0; l.indisponivel = st?.not_available_quantity ?? 0;
+    l.detalhe = st?.not_available_detail || []; l.updated_at = new Date().toISOString();
+  });
+  if (linhas.length) await q(db.from("full_ml_estoque").upsert(linhas));
+  // 3) anúncios novos entram nos vínculos (código do ERP pelo SKU, kit pelo título ou sufixo do SKU)
+  const ex = new Set((await q(db.from("full_vinc").select("inv"))).map((v: any) => v.inv));
+  const novos = linhas.filter((l) => !ex.has(l.inv));
+  if (novos.length) {
+    const sk = (s: string) => String(s || "").match(/^(\d{4,6})(?:-0*(\d{1,3}))?$/);
+    const cods = [...new Set(novos.map((l) => sk(l.sku)?.[1]).filter(Boolean))] as string[];
+    const prods = cods.length ? await q(db.from("products").select("id,data").in("id", cods)) : [];
+    const pm = new Map(prods.map((p: any) => [p.id, p]));
+    const rows = novos.map((l) => { const m = sk(l.sku); const cod = m && pm.has(m[1]) ? m[1] : ""; const mult = m?.[2] ? Math.max(1, +m[2]) : multTitulo(l.titulo || "");
+      return { inv: l.inv, cod, mult, updated_at: new Date().toISOString() }; });
+    await q(db.from("full_vinc").upsert(rows));
+    const erp = rows.filter((r) => r.cod).map((r) => { const p: any = pm.get(r.cod); return { cod: r.cod, nome: p?.data?.name || r.cod, ean: p?.data?.ean || "" }; });
+    if (erp.length) await q(db.from("full_erp").upsert(erp, { onConflict: "cod", ignoreDuplicates: true }));
+  }
+  // 4) movimentações (janelas de até 60 dias)
+  const invs = linhas.map((l) => l.inv);
+  const ate = new Date();
+  let de = a.ops_ate ? new Date(new Date(a.ops_ate).getTime() - 2 * 86400000) : new Date(ate.getTime() - 120 * 86400000);
+  if (diasHist > 0) de = new Date(ate.getTime() - Math.min(diasHist, 730) * 86400000);
+  const dia = (d: Date) => d.toISOString().slice(0, 10);
+  let nOps = 0;
+  for (let w0 = de; w0 < ate; w0 = new Date(w0.getTime() + 59 * 86400000)) {
+    const w1 = new Date(Math.min(ate.getTime(), w0.getTime() + 59 * 86400000));
+    for (let i = 0; i < invs.length; i += 20) {
+      let sc = "";
+      for (let p = 0; p < 50; p++) {
+        const j = await mlGet(a, `/stock/fulfillment/operations/search?seller_id=${a.user_id}&inventory_id=${invs.slice(i, i + 20).join(",")}&date_from=${dia(w0)}&date_to=${dia(w1)}&limit=1000${sc ? `&scroll=${sc}` : ""}`);
+        const rs = j.results || [];
+        if (rs.length) {
+          const rows = rs.map((o: any) => ({ id: o.id, inv: o.inventory_id, data: o.date_created, tipo: String(o.type || "").toLowerCase(),
+            disp: +(o.detail?.available_quantity ?? 0) || 0, indisp: +(o.detail?.not_available_quantity ?? 0) || 0,
+            saldo: o.result?.total ?? ((o.result?.available_quantity ?? 0) + (o.result?.not_available_quantity ?? 0)),
+            ref: o.external_references || null, raw: { detail: o.detail || null, result: o.result || null } }));
+          await q(db.from("full_ml_ops").upsert(rows)); nOps += rows.length;
+        }
+        sc = j.paging?.scroll || ""; if (!rs.length || !sc) break;
+      }
+    }
+  }
+  await q(db.from("full_ml_auth").update({ ultima_sync: new Date().toISOString(), ops_ate: ate.toISOString(), msg: null }).eq("id", 1));
+  return { anuncios: linhas.length, ops: nOps };
+}
 
 async function rev() {
   // inclui o Picking: cadastrar EAN ou local lá atualiza as telas daqui em poucos segundos
@@ -186,6 +295,51 @@ Deno.serve(async (req) => {
         const alvo = gestor && !me.qrEnvio && b.login ? String(b.login) : me.login;
         await q(db.from("full_users").update({ modo: b.modo }).eq("login", alvo));
         return out({ ok: true });
+      }
+      case "ml_status": {
+        must(gestor, "Só o gestor vê o estoque do Full.");
+        const a = await mlAuth();
+        return out({ conectado: !!a?.refresh_token, nick: a?.nick || "", ultima_sync: a?.ultima_sync || null, msg: a?.msg || null, client_id: ML_ID, redirect: ML_REDIR });
+      }
+      case "ml_callback": {
+        must(gestor && !me.qrEnvio, "Só o gestor conecta o Mercado Livre.");
+        must(b.code, "Código de autorização ausente.", 400);
+        const t = await mlOauth({ grant_type: "authorization_code", code: String(b.code), redirect_uri: ML_REDIR });
+        const u = await (await fetch(`${ML}/users/me`, { headers: { authorization: `Bearer ${t.access_token}` } })).json().catch(() => ({}));
+        await q(db.from("full_ml_auth").update({ user_id: t.user_id || u.id, nick: u.nickname || "", access_token: t.access_token, refresh_token: t.refresh_token, expira: t.expira, msg: null, ops_ate: null, updated_at: new Date().toISOString() }).eq("id", 1));
+        const r = await mlSync(); return out({ ok: true, ...r });
+      }
+      case "ml_sync": {
+        must(gestor || me.role === "sistema", "Só o gestor sincroniza.");
+        if (me.role === "sistema") { const a = await mlAuth(); if (a?.ultima_sync && Date.now() - new Date(a.ultima_sync).getTime() < 90000) return out({ ok: true, pulado: true }); }
+        const r = await mlSync(Math.max(0, +b.dias || 0)); return out({ ok: true, ...r });
+      }
+      case "ml_desconectar": {
+        must(gestor && !me.qrEnvio, "Só o gestor desconecta.");
+        await q(db.from("full_ml_auth").update({ access_token: null, refresh_token: null, expira: null, msg: null }).eq("id", 1)); return out({ ok: true });
+      }
+      case "ml_painel": {
+        must(gestor && !me.qrEnvio, "Só o gestor vê o estoque do Full.");
+        const dias = Math.min(365, Math.max(1, +b.dias || 30));
+        const desde = new Date(Date.now() - dias * 86400000).toISOString();
+        const [a, est, res, cus] = await Promise.all([
+          mlAuth(), q(db.from("full_ml_estoque").select("inv,item_id,titulo,sku,status,total,disponivel,indisponivel,detalhe,updated_at")),
+          q(db.rpc("full_ml_resumo", { p_desde: desde })), q(db.from("full_custo").select("cod,custo,updated_at")),
+        ]);
+        return out({ conectado: !!a?.refresh_token, nick: a?.nick || "", ultima_sync: a?.ultima_sync || null, msg: a?.msg || null, client_id: ML_ID, redirect: ML_REDIR,
+          dias, estoque: est, resumo: res, custos: cus, custos_em: cus.reduce((m: string, c: any) => (c.updated_at > m ? c.updated_at : m), "") });
+      }
+      case "ml_hist": {
+        must(gestor && !me.qrEnvio, "Só o gestor vê o histórico.");
+        return out({ ops: await q(db.from("full_ml_ops").select("id,data,tipo,disp,indisp,saldo,ref").eq("inv", String(b.inv)).order("data", { ascending: false }).limit(500)) });
+      }
+      case "custos": {
+        must(gestor && !me.qrEnvio, "Só o gestor importa custos.");
+        const it = (Array.isArray(b.itens) ? b.itens : []).map((x: any) => ({ cod: String(x.cod || "").trim(), descricao: String(x.descricao || "").slice(0, 200), custo: Math.round((+x.custo || 0) * 100) / 100, updated_at: new Date().toISOString() }))
+          .filter((x: any) => x.cod && x.custo >= 0);
+        must(it.length, "Nenhum custo válido na planilha.", 400);
+        for (let i = 0; i < it.length; i += 500) await q(db.from("full_custo").upsert(it.slice(i, i + 500)));
+        return out({ ok: true, n: it.length });
       }
       case "liberar": {
         must(gestor && !me.qrEnvio, "Só o gestor libera envios.");
