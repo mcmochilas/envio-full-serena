@@ -162,7 +162,7 @@ function phoneHtml(e,u,mode){
       ${full?`<button class="btn btn-dark pbig" data-act="p-done" data-u="${u}" data-cod="${it.cod}">Coletei tudo · liberar etiquetas</button>`
       :`${md==="camera"?(('BarcodeDetector' in window)?`<div id="camwrap" hidden><video id="cam" playsinline muted></video><button class="btn btn-sm" data-act="p-camx">Fechar câmera</button></div><button class="btn btn-dark pbig" id="camopen" data-act="p-cam" data-u="${u}">Abrir câmera para bipar</button>`
           :`<div class="lmsg err">Este navegador não lê código pela câmera. Use o Chrome no Android ou troque o modo de bipagem na engrenagem.</div>`):""}
-        <form class="pscan" data-u="${u}" data-modo="${md}" autocomplete="off"><input class="inp" id="pscan-${u}" placeholder="${md==="camera"?"Ou digite o código":"Bipe a peça"}" inputmode="${md==="camera"||tecladoOn(md)?"numeric":"none"}" aria-label="Código da peça"><button class="btn btn-dark" type="submit">OK</button></form>
+        <i id="pickmark" hidden data-u="${u}" data-modo="${md}"></i>
         ${md!=="camera"?`<div class="pmodohint"><span class="t2">${ph.lido?`Último código lido: <span class="mono">${esc(ph.lido)}</span>`:md==="bluetooth"?"Leitor Bluetooth: pode bipar direto.":"Coletor: pode bipar direto."}</span><button class="lnkbtn" data-act="p-digitar">${tecladoOn(md)?"Esconder teclado":"Mostrar teclado"}</button></div>`:""}
         <div class="acts"><button class="btn" style="flex:1" data-act="p-mais" data-u="${u}">Contar sem bipe (+1)</button><button class="btn" style="flex:1" data-act="p-tudo" data-u="${u}" data-cod="${it.cod}">Contei tudo (${it.pecas})</button></div>`}
       <button class="lnkbtn" data-act="p-solta" data-u="${u}" data-cod="${it.cod}">Devolver este item para a lista</button>

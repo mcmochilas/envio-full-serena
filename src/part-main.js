@@ -30,7 +30,7 @@ function renderLogin(err){
       await carregar(true); render(); mlPendente(); }
     catch(x){ renderLogin(x.message); } };
 }
-async function iniciar(){
+async function iniciar(){ scanInit();
   if(DB.qr){ renderCarregando("Abrindo o envio…");
     try{ await carregar(true); DB.mobile=DB.meObj.qrEnvio; DB.mobileU=DB.meObj.login; }catch(x){ DB.carregado=true; DB.mobile="__x"; DB.mobileU=null; }
     render(); return; }
@@ -57,26 +57,45 @@ async function camLiga(e,u){
 }
 /* modo de bipagem: câmera abre sozinha; leitor/coletor deixam o campo sempre pronto */
 let AUTOCAM=null;
-function prepBipe(u){ if(modoDe(u)==="camera"){ FOCUS=null; AUTOCAM=u; } else { FOCUS=`pscan-${u}`; AUTOCAM=null; } }
+function prepBipe(u){ if(modoDe(u)==="camera"){ AUTOCAM=u; } else { AUTOCAM=null; } }
+/* Campo de bipe FIXO (fora da área que é redesenhada), como no app de Picking: o coletor fica "preso" ao mesmo campo
+   e não perde a conexão do teclado a cada bipe ou atualização da tela. */
+const SC=()=>document.getElementById("scanIn");
 function posRender(){ const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur);
   if(CAM){ const o=$("#camopen"); if(o) o.hidden=true; }
-  if(AUTOCAM&&e){ const u=AUTOCAM; AUTOCAM=null; if($("#camwrap")&&!CAM) camLiga(e,u); } }
-document.addEventListener("focusout",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo==="camera") return;
-  setTimeout(()=>{ const a=document.activeElement; if(a&&a!==document.body&&a.tagName!=="HTML") return; const n=document.getElementById(t.id); if(n) n.focus({preventScroll:true}); },180); });
-let COL_T=null, KBUF="", KT=0, LAST_SCAN={v:"",t:0};
-/* leitor no modo teclado mesmo sem o campo focado: junta as teclas rápidas e manda para o campo de bipe */
-document.addEventListener("keydown",ev=>{ const f=document.querySelector("form.pscan"); if(!f||f.dataset.modo==="camera") return;
-  const inp=f.querySelector("input"); if(document.activeElement===inp) return;
-  const a=document.activeElement; if(a&&(a.tagName==="INPUT"||a.tagName==="TEXTAREA"||a.tagName==="SELECT")) return;
-  const now=Date.now(); if(now-KT>300) KBUF=""; KT=now;
-  if(ev.key==="Enter"){ if(KBUF.length>=6){ ev.preventDefault(); inp.value=KBUF; KBUF=""; f.requestSubmit(); } return; }
-  if(ev.key&&ev.key.length===1){ KBUF+=ev.key; inp.value=KBUF; inp.focus({preventScroll:true}); inp.dispatchEvent(new Event("input",{bubbles:true})); ev.preventDefault(); } });
-document.addEventListener("input",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo!=="coletor") return;
-  /* coletor: envia assim que o código bate com o EAN esperado (ou tem o tamanho dele); sem isso, só depois de uma pausa longa.
-     Coletores digitam em rajadas, então nunca envia pela metade. Se o coletor mandar Enter, o envio é imediato. */
-  clearTimeout(COL_T); const v=t.value.trim(); const ph=DB.ph[DB.mobile?"_m":f.dataset.u]; const esp=ph&&ph.cod?eanOf(ph.cod):"";
-  if(esp&&eanBate(v,esp)){ COL_T=setTimeout(()=>{ if(document.body.contains(f)&&t.value.trim()) f.requestSubmit(); },60); return; }
-  COL_T=setTimeout(()=>{ const w=t.value.replace(/\D/g,""); if(w.length>=(esp?Math.min(8,esp.length):8)&&document.body.contains(f)) f.requestSubmit(); },900); });
+  if(AUTOCAM&&e){ const u=AUTOCAM; AUTOCAM=null; if($("#camwrap")&&!CAM) camLiga(e,u); }
+  const bar=document.getElementById("scanbar"), mk=document.getElementById("pickmark"), inp=SC(); if(!bar||!inp) return;
+  if(!mk){ if(!bar.hidden){ bar.hidden=true; inp.value=""; document.body.classList.remove("comscan"); } return; }
+  const md=mk.dataset.modo, im=md==="camera"||tecladoOn(md)?"numeric":"none";
+  bar.dataset.u=mk.dataset.u; bar.dataset.modo=md; if(inp.getAttribute("inputmode")!==im) inp.setAttribute("inputmode",im);
+  inp.placeholder=md==="camera"?"Ou digite o código e toque OK":tecladoOn(md)?"Digite o código e toque OK":"Leitor pronto: bipe a peça";
+  bar.hidden=false; document.body.classList.add("comscan");
+  if(md!=="camera"&&!CAM) focoScan(); }
+function focoScan(){ const inp=SC(), a=document.activeElement; if(!inp||document.getElementById("scanbar").hidden) return;
+  if(a&&a!==inp&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)) return; if(a!==inp) try{ inp.focus({preventScroll:true}); }catch(_){} }
+let COL_T=null, LAST_SCAN={v:"",t:0}, KBUF="", KT=0;
+function scanEnvia(raw){ const bar=document.getElementById("scanbar"), inp=SC(); clearTimeout(COL_T); inp.value="";
+  const e=DB.mobile?env(DB.mobile):null, u=bar.dataset.u; if(!e||!u) return;
+  /* leitores que mandam Enter duplo (CR+LF) ou Tab+Enter geram um envio vazio logo depois do bipe: ignora sem avisar */
+  const dig=String(raw||"").replace(/\D/g,""), agora=Date.now();
+  if(dig.length<6||(dig===LAST_SCAN.v&&agora-LAST_SCAN.t<250)) return;
+  LAST_SCAN={v:dig,t:agora}; phScan(e,u,raw); render(); }
+function scanInit(){ const inp=SC(); if(!inp||inp.dataset.ok) return; inp.dataset.ok="1";
+  inp.addEventListener("keydown",ev=>{ if(ev.key==="Enter"||ev.key==="Tab"){ ev.preventDefault(); scanEnvia(inp.value); } });
+  /* leitores sem Enter no final: envia quando o código bate com o EAN esperado ou quando a digitação para */
+  inp.addEventListener("input",()=>{ clearTimeout(COL_T); const md=document.getElementById("scanbar").dataset.modo; if(md==="camera"||inp.getAttribute("inputmode")!=="none") return;
+    const ph=DB.ph["_m"], esp=ph&&ph.cod?eanOf(ph.cod):"", v=inp.value.trim();
+    if(esp&&eanBate(v,esp)){ COL_T=setTimeout(()=>scanEnvia(inp.value),80); return; }
+    COL_T=setTimeout(()=>{ if(inp.value.replace(/\D/g,"").length>=8) scanEnvia(inp.value); },400); });
+  document.getElementById("scanf").addEventListener("submit",ev=>{ ev.preventDefault(); scanEnvia(inp.value); focoScan(); });
+  /* tocou fora: o campo volta a ficar pronto para o leitor */
+  inp.addEventListener("blur",()=>{ if(document.getElementById("scanbar").dataset.modo==="camera") return; setTimeout(focoScan,200); });
+  /* leitor mandando teclas com o foco em outro lugar */
+  document.addEventListener("keydown",ev=>{ const bar=document.getElementById("scanbar"); if(bar.hidden||bar.dataset.modo==="camera"||ev.target===inp||/INPUT|TEXTAREA|SELECT/.test(ev.target.tagName)) return;
+    const now=Date.now(); if(now-KT>300) KBUF=""; KT=now;
+    if(ev.key==="Enter"||ev.key==="Tab"){ if(KBUF.length>=6){ ev.preventDefault(); scanEnvia(KBUF); } KBUF=""; return; }
+    if(ev.key&&ev.key.length===1){ KBUF+=ev.key; ev.preventDefault(); inp.value=KBUF; try{ inp.focus({preventScroll:true}); }catch(_){} inp.dispatchEvent(new Event("input")); } });
+}
 function camDesliga(){ if(CAM){ CAM.st.getTracks().forEach(t=>t.stop()); CAM=null; } }
 function atualizaPick(){ const cam=CAM; if(cam){ const v=$("#cam"); const w=$("#camwrap"); render(); const v2=$("#cam"), w2=$("#camwrap"); if(v2&&w2){ v2.srcObject=cam.st; v2.play(); w2.hidden=false; } else camDesliga(); } else render(); }
 
@@ -152,7 +171,7 @@ document.addEventListener("click",ev=>{
     case "p-cfg": { const ph=DB.ph[pk]||(DB.ph[pk]={scr:"lista"}); ph.cfg=!ph.cfg; break; }
     case "p-modo": { const m=b.dataset.m; if(DB.users[u]) DB.users[u].modo=m; const ph=DB.ph[pk]; if(ph) ph.cfg=false; if(m!=="camera") camDesliga();
       api("modo",{modo:m,login:u}).catch(x=>toast(x.message)); toast("Bipagem atualizada"); prepBipe(u); break; }
-    case "p-digitar": { const md=modoDe(u); localStorage.setItem("envio-full-teclado-"+md,tecladoOn(md)?"0":"1"); FOCUS=`pscan-${u}`; break; }
+    case "p-digitar": { const md=modoDe(u); localStorage.setItem("envio-full-teclado-"+md,tecladoOn(md)?"0":"1"); render(); const inp=SC(); if(inp){ inp.blur(); setTimeout(()=>inp.focus(),60); } return; }
     case "p-back": camDesliga(); DB.ph[pk]={scr:"lista"}; break;
     case "p-mais": phScan(e,u,null); atualizaPick(); return;
     case "p-tudo": { const it=itens(e).find(i=>i.cod===b.dataset.cod); if(b.dataset.ok!=="1"){ b.dataset.ok="1"; b.textContent=`Confirmar: peguei as ${it.pecas} peças`; return; }
@@ -188,12 +207,7 @@ document.addEventListener("submit",ev=>{
     acao(async()=>{ await api("vinc",{inv,cod:v.cod,mult}); DB.edAn=null; },"Peças por kit atualizadas"); return; }
   if(f.id==="mlDiasF"){ ev.preventDefault(); const d=Math.min(365,Math.max(1,parseInt($("#mlDias").value,10)||30)); DB.mlDias=d; mlCarregar(); return; }
   if(f.id==="lblForm"){ ev.preventDefault(); lblScan(e,$("#lscan").value); FOCUS=DB.lbl?"lscan":null; render(); }
-  else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; clearTimeout(COL_T); const val=f.querySelector("input").value;
-    /* leitores que mandam Enter duplo (CR+LF) geram um envio vazio logo depois do bipe: ignora sem avisar */
-    const dig=val.replace(/\D/g,""), agora=Date.now();
-    if(dig.length<6||(dig===LAST_SCAN.v&&agora-LAST_SCAN.t<250)){ f.querySelector("input").value=""; return; }
-    LAST_SCAN={v:dig,t:agora};
-    phScan(e,u,val); FOCUS=f.dataset.modo==="camera"&&!tecladoOn("camera")?null:`pscan-${u}`; render(); }
+
   else if(f.id==="uForm"){ ev.preventDefault(); const d={login:$("#uLogin").value.trim().toLowerCase(),nome:$("#uNome").value.trim(),role:$("#uRole").value,modo:$("#uModo").value,pin:$("#uPin").value.trim(),ativo:$("#uAtivo").checked};
     acao(async()=>{ await api("user",d); DB.uEdit=null; },"Usuário salvo."); }
 });
