@@ -63,13 +63,20 @@ function posRender(){ const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur);
   if(AUTOCAM&&e){ const u=AUTOCAM; AUTOCAM=null; if($("#camwrap")&&!CAM) camLiga(e,u); } }
 document.addEventListener("focusout",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo==="camera"||DB.digitar) return;
   setTimeout(()=>{ const a=document.activeElement; if(a&&a!==document.body&&a.tagName!=="HTML") return; const n=document.getElementById(t.id); if(n) n.focus({preventScroll:true}); },180); });
-let COL_T=null;
+let COL_T=null, KBUF="", KT=0;
+/* leitor no modo teclado mesmo sem o campo focado: junta as teclas rápidas e manda para o campo de bipe */
+document.addEventListener("keydown",ev=>{ const f=document.querySelector("form.pscan"); if(!f||f.dataset.modo==="camera") return;
+  const inp=f.querySelector("input"); if(document.activeElement===inp) return;
+  const a=document.activeElement; if(a&&(a.tagName==="INPUT"||a.tagName==="TEXTAREA"||a.tagName==="SELECT")) return;
+  const now=Date.now(); if(now-KT>300) KBUF=""; KT=now;
+  if(ev.key==="Enter"){ if(KBUF.length>=6){ ev.preventDefault(); inp.value=KBUF; KBUF=""; f.requestSubmit(); } return; }
+  if(ev.key&&ev.key.length===1){ KBUF+=ev.key; inp.value=KBUF; inp.focus({preventScroll:true}); inp.dispatchEvent(new Event("input",{bubbles:true})); ev.preventDefault(); } });
 document.addEventListener("input",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo!=="coletor") return;
   /* coletor: envia assim que o código bate com o EAN esperado (ou tem o tamanho dele); sem isso, só depois de uma pausa longa.
      Coletores digitam em rajadas, então nunca envia pela metade. Se o coletor mandar Enter, o envio é imediato. */
   clearTimeout(COL_T); const v=t.value.trim(); const ph=DB.ph[DB.mobile?"_m":f.dataset.u]; const esp=ph&&ph.cod?eanOf(ph.cod):"";
-  if(esp&&(v===esp||v.length>=esp.length)){ f.requestSubmit(); return; }
-  COL_T=setTimeout(()=>{ const w=t.value.trim(); if(w.length>=(esp?esp.length:8)&&document.body.contains(f)) f.requestSubmit(); },900); });
+  if(esp&&eanBate(v,esp)){ COL_T=setTimeout(()=>{ if(document.body.contains(f)&&t.value.trim()) f.requestSubmit(); },60); return; }
+  COL_T=setTimeout(()=>{ const w=t.value.replace(/\D/g,""); if(w.length>=(esp?Math.min(8,esp.length):8)&&document.body.contains(f)) f.requestSubmit(); },900); });
 function camDesliga(){ if(CAM){ CAM.st.getTracks().forEach(t=>t.stop()); CAM=null; } }
 function atualizaPick(){ const cam=CAM; if(cam){ const v=$("#cam"); const w=$("#camwrap"); render(); const v2=$("#cam"), w2=$("#camwrap"); if(v2&&w2){ v2.srcObject=cam.st; v2.play(); w2.hidden=false; } else camDesliga(); } else render(); }
 

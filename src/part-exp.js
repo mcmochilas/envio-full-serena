@@ -163,7 +163,7 @@ function phoneHtml(e,u,mode){
       :`${md==="camera"?(('BarcodeDetector' in window)?`<div id="camwrap" hidden><video id="cam" playsinline muted></video><button class="btn btn-sm" data-act="p-camx">Fechar câmera</button></div><button class="btn btn-dark pbig" id="camopen" data-act="p-cam" data-u="${u}">Abrir câmera para bipar</button>`
           :`<div class="lmsg err">Este navegador não lê código pela câmera. Use o Chrome no Android ou troque o modo de bipagem na engrenagem.</div>`):""}
         <form class="pscan" data-u="${u}" data-modo="${md}" autocomplete="off"><input class="inp" id="pscan-${u}" placeholder="${md==="camera"?"Ou digite o código":"Bipe a peça"}" inputmode="${md==="camera"||DB.digitar?"numeric":"none"}" aria-label="Código da peça"><button class="btn btn-dark" type="submit">OK</button></form>
-        ${md!=="camera"?`<div class="pmodohint"><span class="t2">${md==="bluetooth"?"Leitor Bluetooth: pode bipar direto.":"Coletor: pode bipar direto."}</span><button class="lnkbtn" data-act="p-digitar">${DB.digitar?"Esconder teclado":"Digitar código"}</button></div>`:""}
+        ${md!=="camera"?`<div class="pmodohint"><span class="t2">${ph.lido?`Último código lido: <span class="mono">${esc(ph.lido)}</span>`:md==="bluetooth"?"Leitor Bluetooth: pode bipar direto.":"Coletor: pode bipar direto."}</span><button class="lnkbtn" data-act="p-digitar">${DB.digitar?"Esconder teclado":"Digitar código"}</button></div>`:""}
         <div class="acts"><button class="btn" style="flex:1" data-act="p-mais" data-u="${u}">Contar sem bipe (+1)</button><button class="btn" style="flex:1" data-act="p-tudo" data-u="${u}" data-cod="${it.cod}">Contei tudo (${it.pecas})</button></div>`}
       <button class="lnkbtn" data-act="p-solta" data-u="${u}" data-cod="${it.cod}">Devolver este item para a lista</button>
     </div>`;
@@ -196,11 +196,16 @@ function otim(e,cod,acaoNome,extra,msg,aplica){
       if(r.sep) Object.assign(s,{status:r.sep.status,resp:r.sep.resp,n:r.sep.n,lab:r.sep.lab||{}}); }
     catch(x){ Object.assign(s,antes); toast(x.message); beep(false); try{ await carregar(true); }catch(_){} render(); } });
 }
+/* compara o bipe com o EAN aceitando o que leitores/coletores costumam acrescentar:
+   prefixo de símbolo (ex.: ]E0), Tab/Enter, espaços, zero à esquerda (UPC-A × EAN-13) */
+function eanBate(code,ean){ const c=String(code||"").replace(/\D/g,""), e=String(ean||"").replace(/\D/g,""); if(!c||!e) return false;
+  return c===e || c.replace(/^0+/,"")===e.replace(/^0+/,"") || (c.length>e.length&&c.endsWith(e)) || (c.length>e.length&&c.startsWith(e)&&c.length-e.length<=2); }
 function phScan(e,u,code){
   const key=DB.mobile?"_m":u; const ph=DB.ph[key]; const it=itens(e).find(i=>i.cod===ph.cod); const s=sepOf(e,ph.cod);
   if(!it||s.resp!==u) return;
   if(code!==null && !eanOf(it.cod)){ ph.msg={ok:false,t:"EAN não cadastrado no Picking"}; beep(false); return; }
-  if(code!==null && code.trim()!==eanOf(it.cod)){ ph.msg={ok:false,t:"Produto incorreto"}; beep(false); return; }
+  if(code!==null){ ph.lido=String(code).replace(/[\x00-\x1f]/g,"⏎").slice(0,40); }
+  if(code!==null && !eanBate(code,eanOf(it.cod))){ ph.msg={ok:false,t:"Produto incorreto"}; beep(false); return; }
   if(s.n>=it.pecas){ ph.msg={ok:false,t:"Peças completas"}; beep(false); return; }
   s.n++; ph.msg={ok:true,t:s.n>=it.pecas?"Separação concluída":`Produto conferido · ${s.n}/${it.pecas}`}; beep(true);
   enfileira(async()=>{ try{ const r=await api("sep",{envio:e.id,cod:it.cod,acao:"n",total:it.pecas}); if(r.sep) s.n=r.sep.n; }catch(x){ ph.msg={ok:false,t:x.message}; beep(false); try{ await carregar(true); }catch(_){} render(); } });
