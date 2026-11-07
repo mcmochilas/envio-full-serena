@@ -77,6 +77,7 @@ async function mlGet(a: any, path: string) {
   }
   throw new Erro("O Mercado Livre limitou as consultas. Tente de novo em 1 minuto.", 429);
 }
+const unico = <T>(xs: T[], k: (x: T) => string) => [...new Map(xs.map((x) => [k(x), x])).values()];
 async function emLotes<T>(xs: T[], n: number, fn: (x: T) => Promise<void>) { for (let i = 0; i < xs.length; i += n) await Promise.all(xs.slice(i, i + n).map(fn)); }
 const multTitulo = (t: string) => { const m = t.match(/^(?:kit\s*(?:com\s*)?)?(\d+)\s*(?:x|un\.?|unid\w*|p[çc]s?)\s/i) || t.match(/\bkit\s*(?:com\s*)?(\d+)\s*(?:x|un\.?|unid\w*|p[çc]s?)?\s/i); return m ? Math.max(1, +m[1]) : 1; };
 
@@ -99,6 +100,8 @@ async function mlSync(diasHist = 0) {
       for (const v of it.variations || []) if (v.inventory_id) linhas.push({ ...base, inv: v.inventory_id });
     }
   }
+  // um mesmo inventory_id pode aparecer em mais de um anúncio/variação
+  const ln = unico(linhas, (l: any) => l.inv); linhas.length = 0; linhas.push(...ln);
   // 2) estoque de cada anúncio no Full
   await emLotes(linhas, 6, async (l) => {
     const st = await mlGet(a, `/inventories/${l.inv}/stock/fulfillment`).catch(() => null);
@@ -117,7 +120,7 @@ async function mlSync(diasHist = 0) {
     const rows = novos.map((l) => { const m = sk(l.sku); const cod = m && pm.has(m[1]) ? m[1] : ""; const mult = m?.[2] ? Math.max(1, +m[2]) : multTitulo(l.titulo || "");
       return { inv: l.inv, cod, mult, updated_at: new Date().toISOString() }; });
     await q(db.from("full_vinc").upsert(rows));
-    const erp = rows.filter((r) => r.cod).map((r) => { const p: any = pm.get(r.cod); return { cod: r.cod, nome: p?.data?.name || r.cod, ean: p?.data?.ean || "" }; });
+    const erp = unico(rows.filter((r) => r.cod), (r) => r.cod).map((r) => { const p: any = pm.get(r.cod); return { cod: r.cod, nome: p?.data?.name || r.cod, ean: p?.data?.ean || "" }; });
     if (erp.length) await q(db.from("full_erp").upsert(erp, { onConflict: "cod", ignoreDuplicates: true }));
   }
   // 4) movimentações (janelas de até 60 dias)
@@ -135,10 +138,10 @@ async function mlSync(diasHist = 0) {
         const j = await mlGet(a, `/stock/fulfillment/operations/search?seller_id=${a.user_id}&inventory_id=${invs.slice(i, i + 20).join(",")}&date_from=${dia(w0)}&date_to=${dia(w1)}&limit=1000${sc ? `&scroll=${sc}` : ""}`);
         const rs = j.results || [];
         if (rs.length) {
-          const rows = rs.map((o: any) => ({ id: o.id, inv: o.inventory_id, data: o.date_created, tipo: String(o.type || "").toLowerCase(),
+          const rows = unico(rs.map((o: any) => ({ id: o.id, inv: o.inventory_id, data: o.date_created, tipo: String(o.type || "").toLowerCase(),
             disp: +(o.detail?.available_quantity ?? 0) || 0, indisp: +(o.detail?.not_available_quantity ?? 0) || 0,
             saldo: o.result?.total ?? ((o.result?.available_quantity ?? 0) + (o.result?.not_available_quantity ?? 0)),
-            ref: o.external_references || null, raw: { detail: o.detail || null, result: o.result || null } }));
+            ref: o.external_references || null, raw: { detail: o.detail || null, result: o.result || null } })), (o: any) => String(o.id));
           await q(db.from("full_ml_ops").upsert(rows)); nOps += rows.length;
         }
         sc = j.paging?.scroll || ""; if (!rs.length || !sc) break;
