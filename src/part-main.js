@@ -53,7 +53,7 @@ async function camLiga(e,u){
     v.srcObject=st; await v.play(); w.hidden=false; CAM={st,ultimo:"",t:0}; const o=$("#camopen"); if(o) o.hidden=true;
     const loop=async()=>{ if(!CAM) return; try{ const r=await det.detect(v); if(r[0]){ const c=r[0].rawValue, agora=Date.now(); if(c!==CAM.ultimo||agora-CAM.t>1200){ CAM.ultimo=c; CAM.t=agora; phScan(e,u,c); atualizaPick(); } } }catch(x){} if(CAM) setTimeout(loop,250); };
     loop(); }
-  catch(x){ toast("Não foi possível abrir a câmera."); }
+  catch(x){ toast("Câmera indisponível"); }
 }
 /* modo de bipagem: câmera abre sozinha; leitor/coletor deixam o campo sempre pronto */
 let AUTOCAM=null;
@@ -88,24 +88,24 @@ document.addEventListener("click",ev=>{
     case "per": DB.f.per=b.dataset.p; DB.pg.envios=1; break;
     case "sel": DB.sel=b.dataset.id||null; break;
     case "novo": DB.sel="novo"; DB.imp=null; break;
-    case "criar": { const I=DB.imp; if(!I||!I.anuncios.length){ toast("Suba os arquivos de etiquetas."); return; } if(!I.pvs.length){ toast("Suba também a pré-venda em PDF."); return; }
+    case "criar": { const I=DB.imp; if(!I||!I.anuncios.length){ toast("Falta o arquivo de etiquetas"); return; } if(!I.pvs.length){ toast("Falta a pré-venda"); return; }
       b.disabled=true; b.textContent="Importando…";
-      acao(async()=>{ await api("importar",{envio:{id:I.id,anuncios:I.anuncios,pre:I.pre,pvs:I.pvs},erp:I.erpNovos,vinc:I.vinc}); DB.f={per:"todos",q:""}; DB.sel=I.id; DB.imp=null; },`Envio #${I.id} importado.`); return; }
+      acao(async()=>{ await api("importar",{envio:{id:I.id,anuncios:I.anuncios,pre:I.pre,pvs:I.pvs},erp:I.erpNovos,vinc:I.vinc}); DB.f={per:"todos",q:""}; DB.sel=I.id; DB.imp=null; },"Envio importado"); return; }
     case "delenv": { const id=b.dataset.id, e0=env(id);
-      if(!(DB.delPend&&DB.delPend.id===id&&Date.now()-DB.delPend.t<6000)){ DB.delPend={id,t:Date.now()}; toast(e0&&e0.status!=="rascunho"?`Envio #${id} já está com a expedição. Clique no X de novo para excluir.`:`Clique no X de novo para excluir o envio #${id}.`); break; }
-      DB.delPend=null; acao(async()=>{ await api("excluir",{id}); if(DB.sel===id) DB.sel=null; },`Envio #${id} excluído.`); return; }
+      if(!(DB.delPend&&DB.delPend.id===id&&Date.now()-DB.delPend.t<6000)){ DB.delPend={id,t:Date.now()}; toast("Clique no X de novo para excluir"); break; }
+      DB.delPend=null; acao(async()=>{ await api("excluir",{id}); if(DB.sel===id) DB.sel=null; },"Envio excluído"); return; }
     case "excluir": if(b.dataset.ok!=="1"){ b.dataset.ok="1"; b.textContent="Clique de novo para confirmar a exclusão"; return; } acao(async()=>{ await api("excluir",{id:b.dataset.id}); DB.sel=null; },"Rascunho excluído."); return;
-    case "zpl": { const it=itens(e).find(i=>i.cod===b.dataset.cod); navigator.clipboard.writeText(zplFor(it)).then(()=>toast("ZPL copiado. Cole no utilitário da impressora térmica."),()=>toast("Não deu para copiar.")); return; }
-    case "liberar": acao(()=>api("liberar",{id:b.dataset.id}),`Envio #${b.dataset.id} enviado para a fila da expedição.`); return;
+    case "zpl": { const it=itens(e).find(i=>i.cod===b.dataset.cod); navigator.clipboard.writeText(zplFor(it)).then(()=>toast("ZPL copiado"),()=>toast("Não deu para copiar.")); return; }
+    case "liberar": acao(()=>api("liberar",{id:b.dataset.id}),"Envio liberado"); return;
     case "addpre": { const x=env(b.dataset.id); const r=conf(x).rows.find(r=>r.cod===b.dataset.cod); if(!r||r.d>=0) return;
-      acao(()=>api("addpre",{id:x.id,cod:r.cod,qtd:-r.d}),`${-r.d} peças adicionadas à pré-venda. Lance também no ERP.`); return; }
+      acao(()=>api("addpre",{id:x.id,cod:r.cod,qtd:-r.d}),"Pré-venda ajustada"); return; }
     case "rmpre": acao(()=>api("rmpre",{id:b.dataset.id,cod:b.dataset.cod})); return;
     case "to-exp": DB.asExp=true; DB.cur=null; break;
     case "to-gestor": DB.asExp=false; DB.cur=null; break;
     case "home": DB.cur=null; DB.lbl=null; break;
     case "abrir": DB.cur=b.dataset.id; DB.lbl=null; DB.qrU=DB.me; break;
-    case "concluir": acao(async()=>{ await api("concluir",{id:e.id}); DB.cur=null; },`Envio #${e.id} concluído.`); return;
-    case "qrNovo": acao(async()=>{ await qrLink(e.id,qrU(),true); },"Link anterior cancelado. Novo QR gerado."); return;
+    case "concluir": acao(async()=>{ await api("concluir",{id:e.id}); DB.cur=null; },"Tarefa finalizada"); return;
+    case "qrNovo": acao(async()=>{ await qrLink(e.id,qrU(),true); },"Novo QR gerado"); return;
     case "qrCopiar": qrLink(e.id,qrU()).then(l=>navigator.clipboard.writeText(l)).then(()=>toast("Link copiado."),x=>toast(x?.message||"Não deu para copiar.")); return;
     case "lbl": DB.lbl=b.dataset.cod; DB.lmsg=null; if(sepOf(e,DB.lbl).status==="impresso") FOCUS="lscan"; break;
     case "ajuda": DB.ajuda=true; DB.ajI=0; break;
@@ -115,9 +115,9 @@ document.addEventListener("click",ev=>{
     case "anEdX": DB.edAn=null; break;
     case "volta": { const cod=b.dataset.cod, it=itens(e).find(i=>i.cod===cod);
       if(!(DB.voltaPend&&DB.voltaPend.cod===cod&&Date.now()-DB.voltaPend.t<6000)){ DB.voltaPend={cod,t:Date.now()};
-        toast(`${nomeCod(cod)} volta para a lista de separação${it&&it.lab?` e as ${it.lab} etiquetas já bipadas serão zeradas`:""}. Clique de novo para confirmar.`); break; }
+        toast("Clique de novo para recolocar"); break; }
       DB.voltaPend=null; if(DB.lbl===cod) DB.lbl=null;
-      acao(()=>sep("volta",cod,{},`recolocou ${nomeCod(cod)} na lista de separação`),`${nomeCod(cod)} voltou para a lista de separação.`); return; }
+      acao(()=>sep("volta",cod,{},`recolocou ${nomeCod(cod)} na lista de separação`),"Item recolocado na separação"); return; }
     case "lblx": DB.lbl=null; DB.lmsg=null; break;
     case "imprimir": { const cod=b.dataset.cod, inv=b.dataset.inv||null; const it0=itens(e).find(i=>i.cod===cod); const a0=inv&&it0?it0.anuncios.find(x=>x.inv===inv):null;
       const oq=a0?`${a0.etiquetas} etiquetas ${a0.mult===1?"de unidade":"de kit"} de ${nomeCod(cod)}`:`as etiquetas de ${nomeCod(cod)}`;
@@ -127,23 +127,23 @@ document.addEventListener("click",ev=>{
     case "uEdit": DB.uEdit={...DB.users[u]}; break;
     case "uCancel": DB.uEdit=null; break;
     /* celular */
-    case "p-pega": { const cod=b.dataset.cod; const s0=sepOf(e,cod); if(s0.status!=="livre"){ toast("Outra pessoa já pegou este item."); break; }
+    case "p-pega": { const cod=b.dataset.cod; const s0=sepOf(e,cod); if(s0.status!=="livre"){ toast("Item já está com outra pessoa"); break; }
       otim(e,cod,"pega",{},`começou a separar ${nomeCod(cod)}`,s=>Object.assign(s,{status:"separando",resp:u,n:0}));
       DB.ph[pk]={scr:"pick",cod,msg:null}; prepBipe(u); window.scrollTo(0,0); break; }
     case "p-open": DB.ph[pk]={scr:"pick",cod:b.dataset.cod,msg:null}; prepBipe(u); break;
     case "p-cfg": { const ph=DB.ph[pk]||(DB.ph[pk]={scr:"lista"}); ph.cfg=!ph.cfg; break; }
     case "p-modo": { const m=b.dataset.m; if(DB.users[u]) DB.users[u].modo=m; const ph=DB.ph[pk]; if(ph) ph.cfg=false; DB.digitar=false; if(m!=="camera") camDesliga();
-      api("modo",{modo:m,login:u}).catch(x=>toast(x.message)); toast(`Bipagem: ${modoTxt(m)}.`); prepBipe(u); break; }
+      api("modo",{modo:m,login:u}).catch(x=>toast(x.message)); toast("Bipagem atualizada"); prepBipe(u); break; }
     case "p-digitar": DB.digitar=!DB.digitar; FOCUS=`pscan-${u}`; break;
     case "p-back": camDesliga(); DB.ph[pk]={scr:"lista"}; break;
     case "p-mais": phScan(e,u,null); atualizaPick(); return;
     case "p-tudo": { const it=itens(e).find(i=>i.cod===b.dataset.cod); if(b.dataset.ok!=="1"){ b.dataset.ok="1"; b.textContent=`Confirmar: peguei as ${it.pecas} peças`; return; }
-      otim(e,it.cod,"tudo",{total:it.pecas},"",s=>{ s.n=it.pecas; }); DB.ph[pk].msg={ok:true,t:"Todas as peças coletadas. Leve para a bancada."}; break; }
+      otim(e,it.cod,"tudo",{total:it.pecas},"",s=>{ s.n=it.pecas; }); DB.ph[pk].msg={ok:true,t:"Separação concluída"}; break; }
     case "p-cam": camLiga(e,u); return;
     case "p-camx": camDesliga(); $("#camwrap").hidden=true; return;
     case "p-done": { camDesliga(); const it=itens(e).find(i=>i.cod===b.dataset.cod);
       otim(e,it.cod,"done",{total:it.pecas},`coletou ${nomeCod(it.cod)} (${it.pecas} peças)`,s=>{ s.status="coletado"; });
-      DB.ph[pk]={scr:"lista"}; toast(`${nomeCod(it.cod)} pronto para etiquetar no computador.`); window.scrollTo(0,0); break; }
+      DB.ph[pk]={scr:"lista"}; toast("Separação concluída"); window.scrollTo(0,0); break; }
     case "p-solta": { camDesliga(); const cod=b.dataset.cod;
       otim(e,cod,"solta",{},`devolveu ${nomeCod(cod)} para a lista`,s=>Object.assign(s,{status:"livre",resp:null,n:0}));
       DB.ph[pk]={scr:"lista"}; window.scrollTo(0,0); break; }
@@ -162,9 +162,9 @@ document.addEventListener("change",ev=>{ const t=ev.target;
 document.addEventListener("submit",ev=>{
   const f=ev.target; const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur);
   if(f.classList.contains("anEd")){ ev.preventDefault(); const inv=f.dataset.inv, mult=parseInt(f.querySelector("input").value,10), v=V(inv);
-    if(!(mult>=1)) return toast("Informe quantas peças vão em cada kit (1 = unidade).");
+    if(!(mult>=1)) return toast("Quantidade inválida");
     if(mult===v.mult){ DB.edAn=null; render(); return; }
-    acao(async()=>{ await api("vinc",{inv,cod:v.cod,mult}); DB.edAn=null; },`Anúncio ${inv}: ${mult===1?"vendido por unidade":"kit com "+mult+" peças"}.`); return; }
+    acao(async()=>{ await api("vinc",{inv,cod:v.cod,mult}); DB.edAn=null; },"Peças por kit atualizadas"); return; }
   if(f.id==="lblForm"){ ev.preventDefault(); lblScan(e,$("#lscan").value); FOCUS=DB.lbl?"lscan":null; render(); }
   else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; clearTimeout(COL_T); phScan(e,u,f.querySelector("input").value); FOCUS=f.dataset.modo==="camera"&&!DB.digitar?null:`pscan-${u}`; render(); }
   else if(f.id==="uForm"){ ev.preventDefault(); const d={login:$("#uLogin").value.trim().toLowerCase(),nome:$("#uNome").value.trim(),role:$("#uRole").value,modo:$("#uModo").value,pin:$("#uPin").value.trim(),ativo:$("#uAtivo").checked};

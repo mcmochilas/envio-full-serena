@@ -21,10 +21,10 @@ function zPDF(it,inv){ const {jsPDF}=window.jspdf; const doc=new jsPDF({orientat
   zPairs(it,inv).forEach((p,i)=>{ if(i) doc.addPage([226.64,70.58],"landscape"); doc.addImage(zPage(p).toDataURL("image/png"),"PNG",0,0,226.64,70.58,undefined,"FAST"); });
   return doc.output("blob"); }
 async function imprimirPDF(e,cod,inv){
-  const it=itens(e).find(i=>i.cod===cod); if(!window.jspdf){ toast("O gerador de PDF não carregou. Recarregue a página."); return false; }
+  const it=itens(e).find(i=>i.cod===cod); if(!window.jspdf){ toast("Recarregue a página"); return false; }
   const blob=zPDF(it,inv), name=`Envio-${e.id}-${cod}${inv?"-"+inv:""}-etiquetas.pdf`, url=URL.createObjectURL(blob);
   const w=window.open(url,"_blank");
-  if(!w){ const a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); toast("PDF baixado. Abra e imprima na térmica (80 × 25 mm)."); }
-  else toast("PDF aberto em outra aba. Imprima na térmica (80 × 25 mm, 2 colunas).");
+  if(!w){ const a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); toast("Etiquetas geradas"); }
+  else toast("Etiquetas geradas");
   setTimeout(()=>URL.revokeObjectURL(url),120000); return true;
 }

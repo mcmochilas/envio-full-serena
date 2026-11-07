@@ -132,13 +132,13 @@ async function lerPreFiles(files){ if(!window.pdfjsLib) throw new Error("o leito
     const pv=r.pv||f.name; pvs.push(pv); r.itens.forEach(it=>{ (pre[it.cod]=pre[it.cod]||{})[pv]=((pre[it.cod]||{})[pv]||0)+it.qtd; erp[it.cod]={nome:it.nome,ean:it.ean}; }); }
   return {pre,pvs,erp}; }
 async function atualizarEnvio(input){ const id=input.dataset.id, files=[...input.files]; input.value=""; if(!files.length) return;
-  try{ if(input.id==="fUpEtq"){ const r=await lerEtqFiles(files); if(!r.anuncios.length) return toast("Não encontrei etiquetas nesses arquivos.");
-      if(r.id&&r.id!==id) return toast(`Esses arquivos são do envio #${r.id}, não do #${id}.`);
+  try{ if(input.id==="fUpEtq"){ const r=await lerEtqFiles(files); if(!r.anuncios.length) return toast("Nenhuma etiqueta encontrada");
+      if(r.id&&r.id!==id) return toast("Arquivos de outro envio");
       const vinc={}; r.anuncios.forEach(a=>{ if(DB.vinc[a.inv]?.cod) return; const s=sugestaoVinc(a); vinc[a.inv]={cod:DB.erp[s.cod]?s.cod:"",mult:s.mult}; });
       const antes=env(id), n0=antes?tot(antes):0, n1=r.anuncios.reduce((t,a)=>t+a.etiquetas,0);
-      acao(()=>api("atualizar",{id,anuncios:r.anuncios,vinc}),`Etiquetas atualizadas: ${r.anuncios.length} anúncios, ${n1} etiquetas (antes ${n0}).`); }
-    else { const r=await lerPreFiles(files); acao(()=>api("atualizar",{id,pre:r.pre,pvs:r.pvs,erp:r.erp}),`Pré-venda atualizada (${r.pvs.join(", ")}).`); } }
-  catch(x){ toast("Não consegui ler o arquivo: "+x.message); }
+      acao(()=>api("atualizar",{id,anuncios:r.anuncios,vinc}),"Etiquetas atualizadas"); }
+    else { const r=await lerPreFiles(files); acao(()=>api("atualizar",{id,pre:r.pre,pvs:r.pvs,erp:r.erp}),"Pré-venda atualizada"); } }
+  catch(x){ toast("Arquivo não reconhecido"); }
 }
 async function lerArquivos(input){
   const I=DB.imp||(DB.imp={anuncios:[],pre:{},pvs:[],vinc:{},erpNovos:{}});

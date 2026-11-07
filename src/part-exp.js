@@ -190,19 +190,19 @@ function otim(e,cod,acaoNome,extra,msg,aplica){
 function phScan(e,u,code){
   const key=DB.mobile?"_m":u; const ph=DB.ph[key]; const it=itens(e).find(i=>i.cod===ph.cod); const s=sepOf(e,ph.cod);
   if(!it||s.resp!==u) return;
-  if(code!==null && code.trim()!==(prod(it.cod)?.ean||"")){ ph.msg={ok:false,t:`Peça errada (${code.trim()||"vazio"}). Este item é ${nomeCod(it.cod)}.`}; beep(false); return; }
-  if(s.n>=it.pecas){ ph.msg={ok:false,t:"Você já tem todas as peças deste item."}; beep(false); return; }
-  s.n++; ph.msg={ok:true,t:s.n>=it.pecas?"Todas as peças coletadas. Leve para a bancada.":`${s.n} de ${it.pecas}`}; beep(true);
+  if(code!==null && code.trim()!==(prod(it.cod)?.ean||"")){ ph.msg={ok:false,t:"Produto incorreto"}; beep(false); return; }
+  if(s.n>=it.pecas){ ph.msg={ok:false,t:"Peças completas"}; beep(false); return; }
+  s.n++; ph.msg={ok:true,t:s.n>=it.pecas?"Separação concluída":`Produto conferido · ${s.n}/${it.pecas}`}; beep(true);
   enfileira(async()=>{ try{ const r=await api("sep",{envio:e.id,cod:it.cod,acao:"n",total:it.pecas}); if(r.sep) s.n=r.sep.n; }catch(x){ ph.msg={ok:false,t:x.message}; beep(false); try{ await carregar(true); }catch(_){} render(); } });
 }
 function lblScan(e,code){
   const cod=DB.lbl; const it=itens(e).find(i=>i.cod===cod); const s=sepOf(e,cod); const c=code.trim().toUpperCase();
   const a=it.anuncios.find(x=>x.inv===c);
-  if(!a){ DB.lmsg={ok:false,t:`Etiqueta ${c||"vazia"} não é deste produto. Retire e cole a certa.`}; beep(false); return; }
-  s.lab=s.lab||{}; if((s.lab[c]||0)>=a.etiquetas){ DB.lmsg={ok:false,t:`Todas as etiquetas ${c} já foram coladas. Esta está sobrando.`}; beep(false); return; }
+  if(!a){ DB.lmsg={ok:false,t:"Etiqueta incorreta"}; beep(false); return; }
+  s.lab=s.lab||{}; if((s.lab[c]||0)>=a.etiquetas){ DB.lmsg={ok:false,t:"Etiqueta sobrando"}; beep(false); return; }
   s.lab[c]=(s.lab[c]||0)+1; beep(true);
-  DB.lmsg={ok:true,t:`${a.mult===1?"Unidade":"Kit"} conferido · ${c} ${s.lab[c]}/${a.etiquetas}`};
+  DB.lmsg={ok:true,t:`${a.mult===1?"Unidade":"Kit"} conferido · ${s.lab[c]}/${a.etiquetas}`};
   const final=it.anuncios.every(x=>(s.lab[x.inv]||0)>=x.etiquetas);
-  if(final){ s.status="etiquetado"; DB.lbl=null; DB.lmsg=null; toast(`${nomeCod(cod)} etiquetado. Deixe separado para o envio.`); }
+  if(final){ s.status="etiquetado"; DB.lbl=null; DB.lmsg=null; toast("Produto etiquetado"); }
   enfileira(async()=>{ try{ await api("sep",{envio:e.id,cod,acao:"lab",inv:c,max:a.etiquetas,final,msg:final?`etiquetou ${nomeCod(cod)} (${it.etq} etiquetas)`:""}); }catch(x){ toast(x.message); beep(false); try{ await carregar(true); }catch(_){} render(); } });
 }
