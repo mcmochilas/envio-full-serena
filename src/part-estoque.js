@@ -87,7 +87,8 @@ function gEstoque(){
           ${DB.mlInv===l.inv?`<tr class="mlhist"><td colspan="8">${mlHistHtml(l)}</td></tr>`:""}`).join("")||`<tr><td colspan="8" class="muted">${m.ativos.length?"Nada encontrado.":"Nenhum anúncio com estoque no Full. Clique em Sincronizar agora."}</td></tr>`}
       </tbody></table></div>${P.html}`;
   }
-  return hdr+`${c.msg?`<div class="lmsg err">${esc(c.msg)} <button class="lnkbtn" data-act="ml-conectar">Conectar de novo</button></div>`:""}
+  const aviso=c.conectado&&c.offline===false?`<div class="lmsg err">Conexão temporária: o Mercado Livre não liberou o <b>acesso offline</b>, então ela vale só até ${c.expira?new Date(c.expira).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"algumas horas"}. No DevCenter, edite a aplicação, marque <b>offline_access</b> nas permissões, salve e clique em <button class="lnkbtn" data-act="ml-conectar">Conectar de novo</button>.</div>`:"";
+  return hdr+aviso+`${c.msg?`<div class="lmsg err">${esc(c.msg)} <button class="lnkbtn" data-act="ml-conectar">Conectar de novo</button></div>`:""}
     <div class="sumrow">
       ${card(BRL(m.custoDisp),"custo disponível no Full",m.custoTot>m.custoDisp?`${BRL(m.custoTot)} com indisponíveis`:"")}
       ${card(n0(m.modelos),"modelos",`${n0(m.ativos.length)} anúncios`)}

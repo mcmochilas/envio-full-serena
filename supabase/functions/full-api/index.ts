@@ -54,9 +54,11 @@ async function mlOauth(body: Record<string, string>) {
   if (!r.ok) throw new Erro(`Mercado Livre recusou a autorização: ${j.message || j.error || r.status}`, 400);
   return { access_token: j.access_token, refresh_token: j.refresh_token, expira: new Date(Date.now() + (j.expires_in || 21600) * 1000).toISOString(), user_id: j.user_id };
 }
+const mlLigado = (a: any) => !!(a?.refresh_token || (a?.access_token && new Date(a.expira).getTime() > Date.now()));
 async function mlToken() {
-  const a = await mlAuth(); must(a?.refresh_token, "Conecte o Mercado Livre primeiro.", 400);
+  const a = await mlAuth(); must(mlLigado(a), "Conecte o Mercado Livre primeiro.", 400);
   if (a.access_token && new Date(a.expira).getTime() > Date.now() + 120000) return a;
+  must(a.refresh_token, "A autorização do Mercado Livre expirou. Ative o acesso offline na aplicação do DevCenter e conecte de novo.", 401);
   try {
     const t = await mlOauth({ grant_type: "refresh_token", refresh_token: a.refresh_token });
     const n = { access_token: t.access_token, refresh_token: t.refresh_token || a.refresh_token, expira: t.expira, msg: null, updated_at: new Date().toISOString() };
@@ -300,7 +302,7 @@ Deno.serve(async (req) => {
       case "ml_status": {
         must(gestor, "Só o gestor vê o estoque do Full.");
         const a = await mlAuth();
-        return out({ conectado: !!a?.refresh_token, nick: a?.nick || "", ultima_sync: a?.ultima_sync || null, msg: a?.msg || null, client_id: ML_ID, redirect: ML_REDIR });
+        return out({ conectado: mlLigado(a), offline: !!a?.refresh_token, nick: a?.nick || "", ultima_sync: a?.ultima_sync || null, msg: a?.msg || null, client_id: ML_ID, redirect: ML_REDIR });
       }
       case "ml_callback": {
         must(gestor && !me.qrEnvio, "Só o gestor conecta o Mercado Livre.");
@@ -312,7 +314,7 @@ Deno.serve(async (req) => {
       }
       case "ml_sync": {
         must(gestor || me.role === "sistema", "Só o gestor sincroniza.");
-        if (me.role === "sistema") { const a = await mlAuth(); if (a?.ultima_sync && Date.now() - new Date(a.ultima_sync).getTime() < 90000) return out({ ok: true, pulado: true }); }
+        if (me.role === "sistema") { const a = await mlAuth(); if (!mlLigado(a)) return out({ ok: true, pulado: true }); if (a?.ultima_sync && Date.now() - new Date(a.ultima_sync).getTime() < 90000) return out({ ok: true, pulado: true }); }
         const r = await mlSync(Math.max(0, +b.dias || 0)); return out({ ok: true, ...r });
       }
       case "ml_desconectar": {
@@ -327,7 +329,7 @@ Deno.serve(async (req) => {
           mlAuth(), q(db.from("full_ml_estoque").select("inv,item_id,titulo,sku,status,total,disponivel,indisponivel,detalhe,updated_at")),
           q(db.rpc("full_ml_resumo", { p_desde: desde })), q(db.from("full_custo").select("cod,custo,updated_at")),
         ]);
-        return out({ conectado: !!a?.refresh_token, nick: a?.nick || "", ultima_sync: a?.ultima_sync || null, msg: a?.msg || null, client_id: ML_ID, redirect: ML_REDIR,
+        return out({ conectado: mlLigado(a), offline: !!a?.refresh_token, expira: a?.expira || null, nick: a?.nick || "", ultima_sync: a?.ultima_sync || null, msg: a?.msg || null, client_id: ML_ID, redirect: ML_REDIR,
           dias, estoque: est, resumo: res, custos: cus, custos_em: cus.reduce((m: string, c: any) => (c.updated_at > m ? c.updated_at : m), "") });
       }
       case "ml_hist": {
