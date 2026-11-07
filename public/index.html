@@ -1051,7 +1051,8 @@ function xLabel(e,it){
   return `<div class="panel lblp"><div class="lhd"><div><span class="eyebrow">Etiquetas</span><h3 style="font-size:19px">${esc(nomeCod(it.cod))}</h3></div><div class="lhdb"><button class="hbtn" data-act="ajuda" title="Como configurar a impressora térmica" aria-label="Ajuda: como configurar a impressora térmica">?</button><button class="btn btn-sm" data-act="lblx">Fechar</button></div></div>
     <div class="plan">${it.anuncios.map(row).join("")}</div>
     ${imp?`<form class="scan" id="lblForm" autocomplete="off"><input class="inp" id="lscan" placeholder="Bipe cada etiqueta depois de colar" aria-label="Código da etiqueta"><button class="btn btn-dark" type="submit">OK</button></form>
-      ${DB.lmsg?`<div class="lmsg ${DB.lmsg.ok?"ok":"err"}">${esc(DB.lmsg.t)}</div>`:""}`:""}
+      ${DB.lmsg?`<div class="lmsg ${DB.lmsg.ok?"ok":"err"}">${esc(DB.lmsg.t)}</div>`:""}
+      ${lblCompleto(it,s)?`<div class="lmsg ok">Todas as etiquetas foram bipadas. <button class="btn btn-sm btn-dark" data-act="lblfim" data-cod="${it.cod}">Concluir etiquetagem</button></div>`:""}`:""}
     <div class="acts">${n>1?`<button class="btn ${imp?"":"btn-dark"}" data-act="imprimir" data-cod="${it.cod}">Imprimir todas juntas · ${it.etq} etiquetas</button>`:""}<button class="btn" data-act="zpl" data-cod="${it.cod}">Copiar ZPL</button>${imp?"":`<button class="lnkbtn" data-act="jaimp" data-cod="${it.cod}">Já imprimi, ir para o bipe</button>`}</div>
     <p class="hint">PDF no layout da térmica: 80 × 25 mm, duas etiquetas por linha.</p>
   </div>`;
@@ -1153,16 +1154,25 @@ function phScan(e,u,code){
   s.n++; ph.msg={ok:true,t:s.n>=it.pecas?"Separação concluída":`Produto conferido · ${s.n}/${it.pecas}`}; beep(true);
   enfileira(async()=>{ try{ const r=await api("sep",{envio:e.id,cod:it.cod,acao:"n",total:it.pecas}); if(r.sep) s.n=r.sep.n; }catch(x){ ph.msg={ok:false,t:x.message}; beep(false); try{ await carregar(true); }catch(_){} render(); } });
 }
+const lblCompleto=(it,s)=>it.anuncios.every(x=>((s.lab||{})[x.inv]||0)>=x.etiquetas);
+/* fecha a etiquetagem quando todas as etiquetas já foram bipadas (inclusive se o último envio ao servidor se perdeu) */
+function lblFinaliza(e,cod){ const it=itens(e).find(i=>i.cod===cod); const s=sepOf(e,cod);
+  s.status="etiquetado"; DB.lbl=null; DB.lmsg=null; toast("Produto etiquetado"); beep(true);
+  enfileira(async()=>{ try{ await api("sep",{envio:e.id,cod,acao:"fimlab",msg:`etiquetou ${nomeCod(cod)} (${it?it.etq:""} etiquetas)`}); }catch(x){ toast(x.message); try{ await carregar(true); }catch(_){} render(); } }); }
 function lblScan(e,code){
   const cod=DB.lbl; const it=itens(e).find(i=>i.cod===cod); const s=sepOf(e,cod); const c=code.trim().toUpperCase();
   const a=it.anuncios.find(x=>x.inv===c);
   if(!a){ DB.lmsg={ok:false,t:"Etiqueta incorreta"}; beep(false); return; }
-  s.lab=s.lab||{}; if((s.lab[c]||0)>=a.etiquetas){ DB.lmsg={ok:false,t:"Etiqueta sobrando"}; beep(false); return; }
+  s.lab=s.lab||{};
+  if(lblCompleto(it,s)){ lblFinaliza(e,cod); return; }
+  if((s.lab[c]||0)>=a.etiquetas){ DB.lmsg={ok:false,t:"Etiqueta sobrando"}; beep(false); return; }
   s.lab[c]=(s.lab[c]||0)+1; beep(true);
   DB.lmsg={ok:true,t:`${a.mult===1?"Unidade":"Kit"} conferido · ${s.lab[c]}/${a.etiquetas}`};
   const final=it.anuncios.every(x=>(s.lab[x.inv]||0)>=x.etiquetas);
   if(final){ s.status="etiquetado"; DB.lbl=null; DB.lmsg=null; toast("Produto etiquetado"); }
-  enfileira(async()=>{ try{ await api("sep",{envio:e.id,cod,acao:"lab",inv:c,max:a.etiquetas,final,msg:final?`etiquetou ${nomeCod(cod)} (${it.etq} etiquetas)`:""}); }catch(x){ toast(x.message); beep(false); try{ await carregar(true); }catch(_){} render(); } });
+  enfileira(async()=>{ try{ const r=await api("sep",{envio:e.id,cod,acao:"lab",inv:c,max:a.etiquetas,final,msg:final?`etiquetou ${nomeCod(cod)} (${it.etq} etiquetas)`:""});
+      // a contagem do servidor já estava completa: garante que o item saia da etiquetagem
+      if(final&&r&&r.erro&&r.sep&&r.sep.status==="impresso") await api("sep",{envio:e.id,cod,acao:"fimlab"}); }catch(x){ toast(x.message); beep(false); try{ await carregar(true); }catch(_){} render(); } });
 }
 /* ---------- roteamento / login ---------- */
 /* celular: #s-<token> (gerado no servidor, vale só para um envio e uma pessoa); sem login */
@@ -1284,6 +1294,7 @@ document.addEventListener("click",ev=>{
     case "tab": DB.tab=b.dataset.t; DB.uEdit=null; if(DB.tab==="estoque"&&DB.ml) mlCarregar(); break;
     case "ml-conectar": mlConectar(); return;
     case "ml-recarregar": DB.mlErro=null; DB.ml=null; break;
+    case "lblfim": if(e) lblFinaliza(e,b.dataset.cod); break;
     case "ml-custos": document.getElementById("fCusto").click(); return;
     case "ml-sync": DB.mlSync=true; render(); api("ml_sync",{}).then(r=>toast(`Sincronizado · ${r.anuncios} anúncios`)).catch(x=>toast(x.message)).finally(async()=>{ DB.mlSync=false; await mlCarregar(); }); return;
     case "ml-dias": if(b.dataset.d==="custom"){ DB.mlCustom=true; break; } DB.mlCustom=false; DB.mlDias=+b.dataset.d; DB.pg.mla=1; mlCarregar(); break;
