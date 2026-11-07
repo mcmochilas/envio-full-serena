@@ -51,7 +51,6 @@ function xWork(e){
     <div class="sumrow">
       <div class="sum"><b class="num">${cnt("livre")}</b><span>para buscar</span></div>
       <div class="sum"><b class="num">${its.reduce((t,i)=>t+kitsDe(i).n,0)}</b><span>kits no envio</span></div>
-      <div class="sum"><b class="num">${its.reduce((t,i)=>t+unDe(i),0)}</b><span>peças unitárias</span></div>
       <div class="sum"><b class="num">${cnt("separando")}</b><span>sendo separados</span></div>
       <div class="sum hl"><b class="num">${prontos.length}</b><span>prontos p/ etiquetar</span></div>
       <div class="sum"><b class="num">${etqDone(e)}/${tot(e)}</b><span>etiquetas coladas</span></div>
@@ -61,15 +60,15 @@ function xWork(e){
       <div class="acts"><button class="btn btn-dark" data-act="concluir" style="height:52px">Concluir envio</button></div></div>`:""}
     ${DB.lbl&&its.find(i=>i.cod===DB.lbl)?xLabel(e,its.find(i=>i.cod===DB.lbl)):""}
     <div class="panel"><h3>Produtos do envio</h3>
-      <div class="irow ihead" aria-hidden="true"><span>Produto</span><span class="r">Kits</span><span class="r">Unitário</span><span></span><span></span></div>
+      <div class="irow ihead" aria-hidden="true"><span>Produto</span><span class="c">Kits</span><span class="c">Unitário</span><span class="r">Situação</span></div>
       ${its.map(it=>{ const k=kitsDe(it), un=unDe(it); return `<div class="irow ${DB.lbl===it.cod?"sel":""}">
         <div><div class="t1">${esc(nomeCod(it.cod))}</div><div class="t2">${locOf(it.cod)?`<span class="locpill">${locOf(it.cod)}</span> `:`<span class="locpill off">Sem cadastro de local</span> `}cód. ${it.cod} · <b>${it.pecas} peças</b></div></div>
         <div class="icol" aria-label="Kits">${k.n?`<b class="num">${k.n} kit${k.n>1?"s":""}</b><span class="t2">${k.det}</span>`:`<span class="t2">—</span>`}</div>
         <div class="icol" aria-label="Unitário">${un?`<b class="num">${un} un</b>`:`<span class="t2">—</span>`}</div>
-        <div class="ist">${stTag(it)}${it.s.status==="livre"?`<span class="t2">aguardando coleta</span>`:it.s.status==="separando"?`<span class="t2 num">${it.s.n}/${it.pecas} coletadas</span>`:it.s.resp&&it.s.status!=="livre"?`<span class="t2">coletado por ${esc(nomeU(it.s.resp))}</span>`:""}</div>
+        <div class="iend"><div class="ist">${stTag(it)}${it.s.status==="livre"?`<span class="t2">aguardando coleta</span>`:it.s.status==="separando"?`<span class="t2 num">${it.s.n}/${it.pecas} coletadas</span>`:it.s.resp&&it.s.status!=="livre"?`<span class="t2">coletado por ${esc(nomeU(it.s.resp))}</span>`:""}</div>
         <div class="iact">${it.s.status==="coletado"?`<button class="btn btn-dark btn-sm" data-act="lbl" data-cod="${it.cod}">Gerar etiquetas</button>`
           :it.s.status==="impresso"?`<button class="btn btn-sm" data-act="lbl" data-cod="${it.cod}">Continuar · ${it.lab}/${it.etq}</button>`
-          :it.s.status==="etiquetado"?`<span class="okmark">✓ ${it.etq} etiquetas</span>`:""}${it.s.status!=="livre"&&e.status==="liberado"?voltaBtn(it):""}</div>
+          :it.s.status==="etiquetado"?`<span class="okmark">✓ ${it.etq} etiquetas</span>`:""}${it.s.status!=="livre"&&e.status==="liberado"?voltaBtn(it):""}</div></div>
       </div>`; }).join("")}
     </div>
     <div class="panel"><h3>Atividade</h3><div class="log">${e.log.slice(-12).reverse().map(l=>`<div><span class="tm">${l.t}</span><span>${esc(l.msg)}</span></div>`).join("")||`<span class="muted">Nada ainda.</span>`}</div></div>

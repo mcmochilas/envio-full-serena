@@ -6,7 +6,7 @@
 .sum b{font-family:var(--display);font-size:24px;line-height:1.1}
 .sum span{font-size:12px;color:var(--muted);font-weight:600}
 .sum.hl{background:var(--accent-soft)}.sum.hl b{color:var(--accent)}
-.irow{display:grid;grid-template-columns:minmax(0,1fr) 120px 90px 150px 230px;gap:6px 14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line2)}
+.irow{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(90px,1fr) minmax(80px,1fr) minmax(300px,1.6fr);gap:6px 14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line2)}
 .irow:last-child{border-bottom:0}
 .irow.sel{background:var(--accent-soft);margin:0 -20px;padding:12px 20px}
 @media (max-width:640px){.irow{grid-template-columns:1fr}}
@@ -172,8 +172,12 @@ tr:hover .pen,.pen:focus-visible{opacity:1}.pen:hover{color:var(--petrol);backgr
 .xvolta:hover{color:var(--petrol);border-color:var(--petrol);background:var(--ok-soft)}
 .xvolta.on{background:var(--warn);border-color:var(--warn);color:#fff}
 #toast{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(92vw,520px)}
-.icol{display:flex;flex-direction:column;align-items:flex-end;text-align:right;line-height:1.25}
+.icol{display:flex;flex-direction:column;align-items:center;text-align:center;line-height:1.25}
 .ihead{padding:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}.ihead .r{text-align:right}
 @media (max-width:640px){.ihead{display:none}.icol{align-items:flex-start;text-align:left}}
 .irow .ist{justify-content:flex-end;flex-wrap:wrap}
-@media (max-width:1100px){.irow{grid-template-columns:minmax(0,1fr) 110px 80px 170px}.irow .iact{grid-column:1/-1}}
+
+.iend{display:flex;align-items:center;justify-content:flex-end;gap:14px}
+.ihead .c{text-align:center}
+@media (max-width:1100px){.irow{grid-template-columns:minmax(0,1fr) 90px 80px}.irow .iend{grid-column:1/-1;justify-content:flex-start}.ihead span:last-child{display:none}}
+@media (max-width:640px){.irow{grid-template-columns:1fr 1fr}.irow>div:first-child{grid-column:1/-1}}
