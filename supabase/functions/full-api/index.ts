@@ -111,10 +111,12 @@ async function mlSync(diasHist = 0) {
   // 2) estoque de cada anúncio no Full
   await emLotes(linhas, 6, async (l) => {
     const st = await mlGet(a, `/inventories/${l.inv}/stock/fulfillment`).catch(() => null);
+    if (!st) { l.falhou = true; return; } // sem resposta: mantém o último saldo gravado
     l.total = st?.total ?? 0; l.disponivel = st?.available_quantity ?? 0; l.indisponivel = st?.not_available_quantity ?? 0;
     l.detalhe = st?.not_available_detail || []; l.updated_at = new Date().toISOString();
   });
-  if (linhas.length) await q(db.from("full_ml_estoque").upsert(linhas));
+  const lidas = linhas.filter((l) => !l.falhou);
+  if (lidas.length) await q(db.from("full_ml_estoque").upsert(lidas));
   // 3) anúncios novos entram nos vínculos (código do ERP pelo SKU, kit pelo título ou sufixo do SKU)
   const ex = new Set((await q(db.from("full_vinc").select("inv"))).map((v: any) => v.inv));
   const novos = linhas.filter((l) => !ex.has(l.inv));
