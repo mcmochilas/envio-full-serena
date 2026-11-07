@@ -39,13 +39,15 @@ const log = (envio: string, msg: string) => db.from("full_log").insert({ envio, 
 const toque = (id: string) => db.from("full_envios").update({ updated_at: new Date().toISOString() }).eq("id", id);
 
 async function rev() {
-  const [a, b, c] = await Promise.all([
+  // inclui o Picking: cadastrar EAN ou local lá atualiza as telas daqui em poucos segundos
+  const [a, b, c, d] = await Promise.all([
     q(db.from("full_envios").select("updated_at").order("updated_at", { ascending: false }).limit(1)),
     q(db.from("full_vinc").select("updated_at").order("updated_at", { ascending: false }).limit(1)),
     db.from("full_envios").select("id", { count: "exact", head: true }),
+    q(db.from("products").select("updated_at").order("updated_at", { ascending: false, nullsFirst: false }).limit(1)),
   ]);
   const count = c.count;
-  return `${a[0]?.updated_at || ""}|${b[0]?.updated_at || ""}|${count ?? ""}`;
+  return `${a[0]?.updated_at || ""}|${b[0]?.updated_at || ""}|${count ?? ""}|${d[0]?.updated_at || ""}`;
 }
 
 async function estado(me: Me, since?: string) {
@@ -74,6 +76,7 @@ async function estado(me: Me, since?: string) {
     return {
       rev: r, me, envios, sep, logs: [], vinc, erp,
       locs: Object.fromEntries(prods.map((p: any) => [p.id, p.data?.loc || ""])),
+      eans: Object.fromEntries(prods.map((p: any) => [p.id, String(p.data?.ean || "").trim()])),
       blocks: Object.fromEntries(blocks.map((b: any) => [b.id, b.data])),
       users,
     };
@@ -92,6 +95,7 @@ async function estado(me: Me, since?: string) {
     rev: r, me,
     envios, sep, logs, vinc, erp,
     locs: Object.fromEntries(prods.map((p: { id: string; data: { loc?: string } }) => [p.id, p.data?.loc || ""])),
+    eans: Object.fromEntries(prods.map((p: any) => [p.id, String(p.data?.ean || "").trim()])),
     blocks: Object.fromEntries(blocks.map((b: { id: string; data: unknown }) => [b.id, b.data])),
     users: users.filter((u: { ativo: boolean }) => me.role === "gestor" || u.ativo),
   };

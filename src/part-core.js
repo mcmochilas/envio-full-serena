@@ -34,7 +34,7 @@ function aplicar(st){
   DB.users=Object.fromEntries(st.users.map(u=>[u.login,u]));
   DB.erp=Object.fromEntries(st.erp.map(p=>[p.cod,{nome:p.nome,ean:p.ean}]));
   DB.vinc=Object.fromEntries(st.vinc.map(v=>[v.inv,{cod:v.cod||"",mult:v.mult||1}]));
-  DB.locs=st.locs||{}; BLOCKS=st.blocks||{};
+  DB.locs=st.locs||{}; DB.eans=st.eans||{}; BLOCKS=st.blocks||{};
   const sep={}, logs={};
   st.sep.forEach(s=>{ (sep[s.envio]=sep[s.envio]||{})[s.cod]={status:s.status,resp:s.resp,n:s.n,lab:s.lab||{}}; });
   st.logs.forEach(l=>{ (logs[l.envio]=logs[l.envio]||[]).unshift({t:new Date(l.at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}),msg:l.msg}); });
@@ -93,3 +93,6 @@ function beep(ok){ if(DB.mute) return; try{ actx=actx||new (window.AudioContext|
 const MODOS=[["camera","Câmera do celular"],["bluetooth","Leitor Bluetooth"],["coletor","Coletor de dados"]];
 const modoTxt=m=>(MODOS.find(x=>x[0]===m)||MODOS[0])[1];
 const modoDe=u=>(DB.users[u]&&DB.users[u].modo)||"camera";
+
+/* EAN para validar o bipe: sempre o cadastro do app de Picking */
+const eanOf=cod=>((DB.eans||{})[cod]||"").trim();

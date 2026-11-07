@@ -62,7 +62,7 @@ function xWork(e){
     <div class="panel"><h3>Produtos do envio</h3>
       <div class="irow ihead" aria-hidden="true"><span>Produto</span><span class="c">Kits</span><span class="c">Unitário</span><span class="r">Situação</span></div>
       ${its.map(it=>{ const k=kitsDe(it), un=unDe(it); return `<div class="irow ${DB.lbl===it.cod?"sel":""}">
-        <div><div class="t1">${esc(nomeCod(it.cod))}</div><div class="t2">${locOf(it.cod)?`<span class="locpill">${locOf(it.cod)}</span> `:`<span class="locpill off">Sem cadastro de local</span> `}cód. ${it.cod} · <b>${it.pecas} peças</b></div></div>
+        <div><div class="t1">${esc(nomeCod(it.cod))}</div><div class="t2">${locOf(it.cod)?`<span class="locpill">${locOf(it.cod)}</span> `:`<span class="locpill off">Sem cadastro de local</span> `}cód. ${it.cod} · <b>${it.pecas} peças</b>${eanOf(it.cod)?"":` <span class="locpill warnp">Sem EAN no Picking</span>`}</div></div>
         <div class="icol" aria-label="Kits">${k.n?`<b class="num">${k.n} kit${k.n>1?"s":""}</b><span class="t2">${k.det}</span>`:`<span class="t2">—</span>`}</div>
         <div class="icol" aria-label="Unitário">${un?`<b class="num">${un} un</b>`:`<span class="t2">—</span>`}</div>
         <div class="iend"><div class="ist">${stTag(it)}${it.s.status==="livre"?`<span class="t2">aguardando coleta</span>`:it.s.status==="separando"?`<span class="t2 num">${it.s.n}/${it.pecas} coletadas</span>`:it.s.resp&&it.s.status!=="livre"?`<span class="t2">coletado por ${esc(nomeU(it.s.resp))}</span>`:""}</div>
@@ -150,7 +150,7 @@ function phoneHtml(e,u,mode){
       ${locOf(it.cod)?`<div class="pcard2 ploc"><span class="eyebrow">Endereço no estoque</span><div class="loc-code">${locOf(it.cod)}</div><span class="t2">${locTxt(locOf(it.cod))}</span>
         <div class="map-card" id="map-${mode}-${u}" data-k="${u}:${it.cod}">${mapSVG({loc:parseCode(locOf(it.cod))},null)}</div></div>`
         :`<div class="pcard2 ploc"><div class="noloc">Sem cadastro de local</div></div>`}
-      <div class="pcard2"><span class="eyebrow">Cód. ${it.cod}${p.ean?` · EAN ${p.ean}`:" · sem EAN no ERP"}</span><h2>${esc(p.nome)}</h2>
+      <div class="pcard2"><span class="eyebrow">Cód. ${it.cod}${eanOf(it.cod)?` · EAN ${eanOf(it.cod)}`:""}</span><h2>${esc(p.nome)}</h2>${eanOf(it.cod)?"":`<div class="lmsg err">EAN não cadastrado no Picking. Avise o gestor ou use "Contar sem bipe".</div>`}
         <div class="pcount"><b class="num">${it.s.n}</b><span class="num">de ${it.pecas} peças</span></div>
         <div class="bar"><i class="${full?"full":""}" style="width:${Math.round(it.s.n/it.pecas*100)}%"></i></div>
         <span class="t2">${compo(it)}. A montagem dos kits é feita na bancada.</span></div>
@@ -196,7 +196,8 @@ function otim(e,cod,acaoNome,extra,msg,aplica){
 function phScan(e,u,code){
   const key=DB.mobile?"_m":u; const ph=DB.ph[key]; const it=itens(e).find(i=>i.cod===ph.cod); const s=sepOf(e,ph.cod);
   if(!it||s.resp!==u) return;
-  if(code!==null && code.trim()!==(prod(it.cod)?.ean||"")){ ph.msg={ok:false,t:"Produto incorreto"}; beep(false); return; }
+  if(code!==null && !eanOf(it.cod)){ ph.msg={ok:false,t:"EAN não cadastrado no Picking"}; beep(false); return; }
+  if(code!==null && code.trim()!==eanOf(it.cod)){ ph.msg={ok:false,t:"Produto incorreto"}; beep(false); return; }
   if(s.n>=it.pecas){ ph.msg={ok:false,t:"Peças completas"}; beep(false); return; }
   s.n++; ph.msg={ok:true,t:s.n>=it.pecas?"Separação concluída":`Produto conferido · ${s.n}/${it.pecas}`}; beep(true);
   enfileira(async()=>{ try{ const r=await api("sep",{envio:e.id,cod:it.cod,acao:"n",total:it.pecas}); if(r.sep) s.n=r.sep.n; }catch(x){ ph.msg={ok:false,t:x.message}; beep(false); try{ await carregar(true); }catch(_){} render(); } });

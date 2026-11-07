@@ -327,6 +327,7 @@ tr:hover .pen,.pen:focus-visible{opacity:1}.pen:hover{color:var(--petrol);backgr
 .ihead .c{text-align:center}
 @media (max-width:1100px){.irow{grid-template-columns:minmax(0,1fr) 90px 80px}.irow .iend{grid-column:1/-1;justify-content:flex-start}.ihead span:last-child{display:none}}
 @media (max-width:640px){.irow{grid-template-columns:1fr 1fr}.irow>div:first-child{grid-column:1/-1}}
+.locpill.warnp{font-family:var(--body);background:var(--warn-soft);color:var(--warn)}
 </style>
 
 </head>
@@ -374,7 +375,7 @@ function aplicar(st){
   DB.users=Object.fromEntries(st.users.map(u=>[u.login,u]));
   DB.erp=Object.fromEntries(st.erp.map(p=>[p.cod,{nome:p.nome,ean:p.ean}]));
   DB.vinc=Object.fromEntries(st.vinc.map(v=>[v.inv,{cod:v.cod||"",mult:v.mult||1}]));
-  DB.locs=st.locs||{}; BLOCKS=st.blocks||{};
+  DB.locs=st.locs||{}; DB.eans=st.eans||{}; BLOCKS=st.blocks||{};
   const sep={}, logs={};
   st.sep.forEach(s=>{ (sep[s.envio]=sep[s.envio]||{})[s.cod]={status:s.status,resp:s.resp,n:s.n,lab:s.lab||{}}; });
   st.logs.forEach(l=>{ (logs[l.envio]=logs[l.envio]||[]).unshift({t:new Date(l.at).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}),msg:l.msg}); });
@@ -433,6 +434,9 @@ function beep(ok){ if(DB.mute) return; try{ actx=actx||new (window.AudioContext|
 const MODOS=[["camera","Câmera do celular"],["bluetooth","Leitor Bluetooth"],["coletor","Coletor de dados"]];
 const modoTxt=m=>(MODOS.find(x=>x[0]===m)||MODOS[0])[1];
 const modoDe=u=>(DB.users[u]&&DB.users[u].modo)||"camera";
+
+/* EAN para validar o bipe: sempre o cadastro do app de Picking */
+const eanOf=cod=>((DB.eans||{})[cod]||"").trim();
 /* parsers compartilhados (navegador e node) */
 function zplDecode(s){ return s.replace(/(?:_[0-9A-F]{2})+/g, m=>{ const b=m.split("_").filter(Boolean).map(h=>parseInt(h,16)); try{ return new TextDecoder().decode(new Uint8Array(b)); }catch(e){ return m; } }); }
 function parseZPL(text){
@@ -834,7 +838,7 @@ function xWork(e){
     <div class="panel"><h3>Produtos do envio</h3>
       <div class="irow ihead" aria-hidden="true"><span>Produto</span><span class="c">Kits</span><span class="c">Unitário</span><span class="r">Situação</span></div>
       ${its.map(it=>{ const k=kitsDe(it), un=unDe(it); return `<div class="irow ${DB.lbl===it.cod?"sel":""}">
-        <div><div class="t1">${esc(nomeCod(it.cod))}</div><div class="t2">${locOf(it.cod)?`<span class="locpill">${locOf(it.cod)}</span> `:`<span class="locpill off">Sem cadastro de local</span> `}cód. ${it.cod} · <b>${it.pecas} peças</b></div></div>
+        <div><div class="t1">${esc(nomeCod(it.cod))}</div><div class="t2">${locOf(it.cod)?`<span class="locpill">${locOf(it.cod)}</span> `:`<span class="locpill off">Sem cadastro de local</span> `}cód. ${it.cod} · <b>${it.pecas} peças</b>${eanOf(it.cod)?"":` <span class="locpill warnp">Sem EAN no Picking</span>`}</div></div>
         <div class="icol" aria-label="Kits">${k.n?`<b class="num">${k.n} kit${k.n>1?"s":""}</b><span class="t2">${k.det}</span>`:`<span class="t2">—</span>`}</div>
         <div class="icol" aria-label="Unitário">${un?`<b class="num">${un} un</b>`:`<span class="t2">—</span>`}</div>
         <div class="iend"><div class="ist">${stTag(it)}${it.s.status==="livre"?`<span class="t2">aguardando coleta</span>`:it.s.status==="separando"?`<span class="t2 num">${it.s.n}/${it.pecas} coletadas</span>`:it.s.resp&&it.s.status!=="livre"?`<span class="t2">coletado por ${esc(nomeU(it.s.resp))}</span>`:""}</div>
@@ -922,7 +926,7 @@ function phoneHtml(e,u,mode){
       ${locOf(it.cod)?`<div class="pcard2 ploc"><span class="eyebrow">Endereço no estoque</span><div class="loc-code">${locOf(it.cod)}</div><span class="t2">${locTxt(locOf(it.cod))}</span>
         <div class="map-card" id="map-${mode}-${u}" data-k="${u}:${it.cod}">${mapSVG({loc:parseCode(locOf(it.cod))},null)}</div></div>`
         :`<div class="pcard2 ploc"><div class="noloc">Sem cadastro de local</div></div>`}
-      <div class="pcard2"><span class="eyebrow">Cód. ${it.cod}${p.ean?` · EAN ${p.ean}`:" · sem EAN no ERP"}</span><h2>${esc(p.nome)}</h2>
+      <div class="pcard2"><span class="eyebrow">Cód. ${it.cod}${eanOf(it.cod)?` · EAN ${eanOf(it.cod)}`:""}</span><h2>${esc(p.nome)}</h2>${eanOf(it.cod)?"":`<div class="lmsg err">EAN não cadastrado no Picking. Avise o gestor ou use "Contar sem bipe".</div>`}
         <div class="pcount"><b class="num">${it.s.n}</b><span class="num">de ${it.pecas} peças</span></div>
         <div class="bar"><i class="${full?"full":""}" style="width:${Math.round(it.s.n/it.pecas*100)}%"></i></div>
         <span class="t2">${compo(it)}. A montagem dos kits é feita na bancada.</span></div>
@@ -968,7 +972,8 @@ function otim(e,cod,acaoNome,extra,msg,aplica){
 function phScan(e,u,code){
   const key=DB.mobile?"_m":u; const ph=DB.ph[key]; const it=itens(e).find(i=>i.cod===ph.cod); const s=sepOf(e,ph.cod);
   if(!it||s.resp!==u) return;
-  if(code!==null && code.trim()!==(prod(it.cod)?.ean||"")){ ph.msg={ok:false,t:"Produto incorreto"}; beep(false); return; }
+  if(code!==null && !eanOf(it.cod)){ ph.msg={ok:false,t:"EAN não cadastrado no Picking"}; beep(false); return; }
+  if(code!==null && code.trim()!==eanOf(it.cod)){ ph.msg={ok:false,t:"Produto incorreto"}; beep(false); return; }
   if(s.n>=it.pecas){ ph.msg={ok:false,t:"Peças completas"}; beep(false); return; }
   s.n++; ph.msg={ok:true,t:s.n>=it.pecas?"Separação concluída":`Produto conferido · ${s.n}/${it.pecas}`}; beep(true);
   enfileira(async()=>{ try{ const r=await api("sep",{envio:e.id,cod:it.cod,acao:"n",total:it.pecas}); if(r.sep) s.n=r.sep.n; }catch(x){ ph.msg={ok:false,t:x.message}; beep(false); try{ await carregar(true); }catch(_){} render(); } });
