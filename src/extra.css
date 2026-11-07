@@ -167,3 +167,7 @@ tr:hover .pen,.pen:focus-visible{opacity:1}.pen:hover{color:var(--petrol);backgr
 .pmodo b{font-size:15px}.pmodo span{font-size:13px;color:var(--muted)}
 .pmodo.on{border:2px solid var(--petrol);background:var(--ok-soft)}
 .pmodohint{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.iact{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.xvolta{display:inline-flex;align-items:center;gap:6px;height:36px;min-width:36px;justify-content:center;border:1px solid var(--line);background:var(--surface);color:var(--ink2);border-radius:10px;padding:0 8px;font-size:12px;font-weight:700}
+.xvolta:hover{color:var(--petrol);border-color:var(--petrol);background:var(--ok-soft)}
+.xvolta.on{background:var(--warn);border-color:var(--warn);color:#fff}

@@ -64,7 +64,7 @@ function xWork(e){
         <div class="ist">${stTag(it)}${it.s.status==="separando"?`<span class="t2 num">${it.s.n}/${it.pecas} coletadas</span>`:it.s.resp&&it.s.status!=="livre"?`<span class="t2">coletado por ${esc(nomeU(it.s.resp))}</span>`:""}</div>
         <div class="iact">${it.s.status==="coletado"?`<button class="btn btn-dark btn-sm" data-act="lbl" data-cod="${it.cod}">Gerar etiquetas</button>`
           :it.s.status==="impresso"?`<button class="btn btn-sm" data-act="lbl" data-cod="${it.cod}">Continuar · ${it.lab}/${it.etq}</button>`
-          :it.s.status==="etiquetado"?`<span class="okmark">✓ ${it.etq} etiquetas</span>`:`<span class="t2">aguardando coleta</span>`}</div>
+          :it.s.status==="etiquetado"?`<span class="okmark">✓ ${it.etq} etiquetas</span>`:`<span class="t2">aguardando coleta</span>`}${it.s.status!=="livre"&&e.status==="liberado"?voltaBtn(it):""}</div>
       </div>`).join("")}
     </div>
     <div class="panel"><h3>Atividade</h3><div class="log">${e.log.slice(-12).reverse().map(l=>`<div><span class="tm">${l.t}</span><span>${esc(l.msg)}</span></div>`).join("")||`<span class="muted">Nada ainda.</span>`}</div></div>
@@ -87,6 +87,9 @@ function zplFor(it){
   for(let i=0;i<etq.length;i+=2) out.push("^XA"+one(etq[i],0)+(etq[i+1]?one(etq[i+1],320):"")+"^XZ");
   return out.join("\n");
 }
+const REFRESH=`<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16m0 4v-4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+function voltaBtn(it){ const pend=DB.voltaPend&&DB.voltaPend.cod===it.cod&&Date.now()-DB.voltaPend.t<6000;
+  return `<button class="xvolta ${pend?"on":""}" data-act="volta" data-cod="${it.cod}" title="${pend?"Clique de novo para confirmar":"Recolocar na lista de separação"}" aria-label="Recolocar ${esc(nomeCod(it.cod))} na lista de separação">${REFRESH}${pend?"<span>Recolocar?</span>":""}</button>`; }
 function xLabel(e,it){
   const s=it.s; const imp=s.status==="impresso"; const n=it.anuncios.length;
   const row=a=>{ const d=Math.min(s.lab?.[a.inv]||0,a.etiquetas);

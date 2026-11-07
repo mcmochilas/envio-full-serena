@@ -76,6 +76,7 @@ document.addEventListener("click",ev=>{
   if(!ev.target.closest(".combo")) document.querySelectorAll(".clist").forEach(c=>c.hidden=true);
   const b=ev.target.closest("[data-act]"); if(!b) return; const act=b.dataset.act;
   if(act!=="delenv") DB.delPend=null;
+  if(act!=="volta") DB.voltaPend=null;
   const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur); const u=b.dataset.u; const pk=DB.mobile?"_m":u;
   FOCUS=null;
   const sep=(acaoNome,cod,extra={},msg="")=>api("sep",{envio:e.id,cod,acao:acaoNome,msg,...extra});
@@ -112,6 +113,11 @@ document.addEventListener("click",ev=>{
     case "ajudax": if(ev.target.closest("[data-stop]")&&!ev.target.closest('button[data-act="ajudax"]')) return; DB.ajuda=false; break;
     case "anEd": DB.edAn={id:b.dataset.id,inv:b.dataset.inv}; FOCUS="anEdIn"; break;
     case "anEdX": DB.edAn=null; break;
+    case "volta": { const cod=b.dataset.cod, it=itens(e).find(i=>i.cod===cod);
+      if(!(DB.voltaPend&&DB.voltaPend.cod===cod&&Date.now()-DB.voltaPend.t<6000)){ DB.voltaPend={cod,t:Date.now()};
+        toast(`${nomeCod(cod)} volta para a lista de separação${it&&it.lab?` e as ${it.lab} etiquetas já bipadas serão zeradas`:""}. Clique de novo para confirmar.`); break; }
+      DB.voltaPend=null; if(DB.lbl===cod) DB.lbl=null;
+      acao(()=>sep("volta",cod,{},`recolocou ${nomeCod(cod)} na lista de separação`),`${nomeCod(cod)} voltou para a lista de separação.`); return; }
     case "lblx": DB.lbl=null; DB.lmsg=null; break;
     case "imprimir": { const cod=b.dataset.cod, inv=b.dataset.inv||null; const it0=itens(e).find(i=>i.cod===cod); const a0=inv&&it0?it0.anuncios.find(x=>x.inv===inv):null;
       const oq=a0?`${a0.etiquetas} etiquetas ${a0.mult===1?"de unidade":"de kit"} de ${nomeCod(cod)}`:`as etiquetas de ${nomeCod(cod)}`;
