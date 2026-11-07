@@ -83,6 +83,11 @@ const unico = <T>(xs: T[], k: (x: T) => string) => [...new Map(xs.map((x) => [k(
 async function emLotes<T>(xs: T[], n: number, fn: (x: T) => Promise<void>) { for (let i = 0; i < xs.length; i += n) await Promise.all(xs.slice(i, i + n).map(fn)); }
 const multTitulo = (t: string) => { const m = t.match(/^(?:kit\s*(?:com\s*)?)?(\d+)\s*(?:x|un\.?|unid\w*|p[çc]s?)\s/i) || t.match(/\bkit\s*(?:com\s*)?(\d+)\s*(?:x|un\.?|unid\w*|p[çc]s?)?\s/i); return m ? Math.max(1, +m[1]) : 1; };
 
+// o PostgREST devolve no máximo 1000 linhas por consulta: lê em páginas
+async function todas(f: (de: number, ate: number) => PromiseLike<{ data: any; error: any }>) {
+  const out: any[] = [];
+  for (let de = 0; ; de += 1000) { const r = await q(f(de, de + 999)); out.push(...r); if (r.length < 1000) return out; }
+}
 const qtdIndisp = (x: any) => Array.isArray(x?.not_available_detail) && x.not_available_detail.length
   ? x.not_available_detail.reduce((s: number, d: any) => s + (+d.quantity || 0), 0) : +(x?.not_available_quantity ?? 0) || 0;
 
@@ -131,40 +136,44 @@ async function mlSync(diasHist = 0) {
     const erp = unico(rows.filter((r) => r.cod), (r) => r.cod).map((r) => { const p: any = pm.get(r.cod); return { cod: r.cod, nome: p?.data?.name || r.cod, ean: p?.data?.ean || "" }; });
     if (erp.length) await q(db.from("full_erp").upsert(erp, { onConflict: "cod", ignoreDuplicates: true }));
   }
-  // 4) movimentações (janelas de até 60 dias)
-  const invs = linhas.map((l) => l.inv);
-  const ate = new Date();
-  let de = a.ops_ate ? new Date(new Date(a.ops_ate).getTime() - 2 * 86400000) : new Date(ate.getTime() - 120 * 86400000);
-  if (diasHist > 0) de = new Date(ate.getTime() - Math.min(diasHist, 730) * 86400000);
-  const dia = (d: Date) => d.toISOString().slice(0, 10);
+  // 4) movimentações: da mais recente para a mais antiga, em blocos (janela de 30 dias × 20 anúncios).
+  // O Mercado Livre limita esta consulta por cota; o cursor guarda o próximo bloco e a sincronização seguinte continua dali.
+  const invs = linhas.map((l) => l.inv).sort();
+  const D = 86400000, JAN = 30 * D, LOTE = 20;
+  let cur = a.ops_cursor as { ini: string; fim: string; w: number; i: number } | null;
+  if (diasHist > 0) cur = { ini: new Date(Date.now() - Math.min(diasHist, 730) * D).toISOString(), fim: new Date().toISOString(), w: 0, i: 0 };
+  else if (!cur) cur = { ini: new Date(a.ops_ate ? new Date(a.ops_ate).getTime() - 2 * D : Date.now() - 120 * D).toISOString(), fim: new Date().toISOString(), w: 0, i: 0 };
+  const ini = new Date(cur.ini).getTime(), fim = new Date(cur.fim).getTime();
+  const nJan = Math.max(1, Math.ceil((fim - ini) / JAN));
+  const dia = (t: number) => new Date(t).toISOString().slice(0, 10);
+  const salva = (c: unknown) => q(db.from("full_ml_auth").update({ ops_cursor: c, ultima_sync: new Date().toISOString(), msg: null }).eq("id", 1));
   let nOps = 0;
-  // o Mercado Livre limita esta consulta por cota: se estourar (ou o tempo acabar), guarda até onde chegou e a próxima sincronização continua dali
-  const parcial = async (w0: Date) => {
-    await q(db.from("full_ml_auth").update({ ultima_sync: new Date().toISOString(), ops_ate: new Date(w0.getTime() + 2 * 86400000).toISOString(), msg: null }).eq("id", 1));
-    return { anuncios: linhas.length, ops: nOps, parcial: true };
-  };
-  for (let w0 = de; w0 < ate; w0 = new Date(w0.getTime() + 59 * 86400000)) {
-    const w1 = new Date(Math.min(ate.getTime(), w0.getTime() + 59 * 86400000));
-    for (let i = 0; i < invs.length; i += 20) {
-      if (Date.now() - t0 > 100000) return await parcial(w0);
+  for (let w = cur.w; w < nJan; w++) {
+    const w1 = fim - w * JAN, w0 = Math.max(ini, w1 - JAN);
+    for (let i = w === cur.w ? cur.i : 0; i < invs.length; i += LOTE) {
+      if (Date.now() - t0 > 100000) { await salva({ ...cur, w, i }); return { anuncios: linhas.length, ops: nOps, parcial: true, ate: dia(w1) }; }
       let sc = "";
-      for (let p = 0; p < 50; p++) {
-        let j: any;
-        try { j = await mlGet(a, `/stock/fulfillment/operations/search?seller_id=${a.user_id}&inventory_id=${invs.slice(i, i + 20).join(",")}&date_from=${dia(w0)}&date_to=${dia(w1)}&limit=1000${sc ? `&scroll=${sc}` : ""}`); }
-        catch (e) { if (e instanceof Erro && e.s === 429) return await parcial(w0); throw e; }
-        const rs = j.results || [];
-        if (rs.length) {
-          const rows = unico(rs.map((o: any) => ({ id: o.id, inv: o.inventory_id, data: o.date_created, tipo: String(o.type || "").toLowerCase(),
-            disp: +(o.detail?.available_quantity ?? 0) || 0, indisp: qtdIndisp(o.detail),
-            saldo: o.result?.total ?? ((o.result?.available_quantity ?? 0) + (o.result?.not_available_quantity ?? 0)),
-            ref: o.external_references || null, raw: { detail: o.detail || null, result: o.result || null } })), (o: any) => String(o.id));
-          await q(db.from("full_ml_ops").upsert(rows)); nOps += rows.length;
+      try {
+        for (let p = 0; p < 50; p++) {
+          const j = await mlGet(a, `/stock/fulfillment/operations/search?seller_id=${a.user_id}&inventory_id=${invs.slice(i, i + LOTE).join(",")}&date_from=${dia(w0)}&date_to=${dia(w1)}&limit=1000${sc ? `&scroll=${sc}` : ""}`);
+          const rs = j.results || [];
+          if (rs.length) {
+            const rows = unico(rs.map((o: any) => ({ id: o.id, inv: o.inventory_id, data: o.date_created, tipo: String(o.type || "").toLowerCase(),
+              disp: +(o.detail?.available_quantity ?? 0) || 0, indisp: qtdIndisp(o.detail),
+              saldo: o.result?.total ?? ((o.result?.available_quantity ?? 0) + (o.result?.not_available_quantity ?? 0)),
+              ref: o.external_references || null, raw: { detail: o.detail || null, result: o.result || null } })), (o: any) => String(o.id));
+            await q(db.from("full_ml_ops").upsert(rows)); nOps += rows.length;
+          }
+          sc = j.paging?.scroll || ""; if (!rs.length || !sc) break;
         }
-        sc = j.paging?.scroll || ""; if (!rs.length || !sc) break;
+      } catch (e) {
+        if (e instanceof Erro && e.s === 429) { await salva({ ...cur, w, i }); return { anuncios: linhas.length, ops: nOps, parcial: true, ate: dia(w1) }; }
+        throw e;
       }
+      await salva({ ...cur, w, i: i + LOTE });
     }
   }
-  await q(db.from("full_ml_auth").update({ ultima_sync: new Date().toISOString(), ops_ate: ate.toISOString(), msg: null }).eq("id", 1));
+  await q(db.from("full_ml_auth").update({ ops_cursor: null, ultima_sync: new Date().toISOString(), ops_ate: cur.fim, msg: null }).eq("id", 1));
   return { anuncios: linhas.length, ops: nOps };
 }
 
@@ -328,7 +337,7 @@ Deno.serve(async (req) => {
         must(b.code, "Código de autorização ausente.", 400);
         const t = await mlOauth({ grant_type: "authorization_code", code: String(b.code), redirect_uri: ML_REDIR });
         const u = await (await fetch(`${ML}/users/me`, { headers: { authorization: `Bearer ${t.access_token}` } })).json().catch(() => ({}));
-        await q(db.from("full_ml_auth").update({ user_id: t.user_id || u.id, nick: u.nickname || "", access_token: t.access_token, refresh_token: t.refresh_token, expira: t.expira, msg: null, ops_ate: null, updated_at: new Date().toISOString() }).eq("id", 1));
+        await q(db.from("full_ml_auth").update({ user_id: t.user_id || u.id, nick: u.nickname || "", access_token: t.access_token, refresh_token: t.refresh_token, expira: t.expira, msg: null, updated_at: new Date().toISOString() }).eq("id", 1));
         const r = await mlSync(); return out({ ok: true, ...r });
       }
       case "ml_sync": {
@@ -345,15 +354,16 @@ Deno.serve(async (req) => {
         const dias = Math.min(365, Math.max(1, +b.dias || 30));
         const desde = new Date(Date.now() - dias * 86400000).toISOString();
         const [a, est, res, cus] = await Promise.all([
-          mlAuth(), q(db.from("full_ml_estoque").select("inv,item_id,titulo,sku,status,total,disponivel,indisponivel,detalhe,updated_at")),
-          q(db.rpc("full_ml_resumo", { p_desde: desde })), q(db.from("full_custo").select("cod,custo,updated_at")),
+          mlAuth(), todas((x, y) => db.from("full_ml_estoque").select("inv,item_id,titulo,sku,status,total,disponivel,indisponivel,detalhe,updated_at").order("inv").range(x, y)),
+          q(db.rpc("full_ml_resumo_json", { p_desde: desde })), todas((x, y) => db.from("full_custo").select("cod,custo,updated_at").order("cod").range(x, y)),
         ]);
-        return out({ conectado: mlLigado(a), offline: !!a?.refresh_token, expira: a?.expira || null, nick: a?.nick || "", ultima_sync: a?.ultima_sync || null, msg: a?.msg || null, client_id: ML_ID, redirect: ML_REDIR,
+        const cu = a?.ops_cursor; const carga = cu ? new Date(new Date(cu.fim).getTime() - (cu.w || 0) * 30 * 86400000).toISOString() : null;
+        return out({ carga, conectado: mlLigado(a), offline: !!a?.refresh_token, expira: a?.expira || null, nick: a?.nick || "", ultima_sync: a?.ultima_sync || null, msg: a?.msg || null, client_id: ML_ID, redirect: ML_REDIR,
           dias, estoque: est, resumo: res, custos: cus, custos_em: cus.reduce((m: string, c: any) => (c.updated_at > m ? c.updated_at : m), "") });
       }
       case "ml_hist": {
         must(gestor && !me.qrEnvio, "Só o gestor vê o histórico.");
-        return out({ ops: await q(db.from("full_ml_ops").select("id,data,tipo,disp,indisp,saldo,ref").eq("inv", String(b.inv)).order("data", { ascending: false }).limit(500)) });
+        return out({ ops: await q(db.from("full_ml_ops").select("id::text,data,tipo,disp,indisp,saldo,ref").eq("inv", String(b.inv)).order("data", { ascending: false }).limit(500)) });
       }
       case "custos": {
         must(gestor && !me.qrEnvio, "Só o gestor importa custos.");

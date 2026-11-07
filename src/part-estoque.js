@@ -1,9 +1,9 @@
 /* ===== GESTOR · ESTOQUE NO FULL (API do Mercado Livre) ===== */
-const ML_TIPOS={inbound_reception:"Entrada de mercadoria",sale_confirmation:"Venda",sale_cancelation:"Venda cancelada",sale_delivery_cancelation:"Entrega não concluída (voltou)",sale_return:"Devolução do comprador",
+const ML_TIPOS={inbound_reception:"Abastecimento do Full",sale_confirmation:"Venda",sale_cancelation:"Venda cancelada",sale_delivery_cancelation:"Devolução · entrega não concluída",sale_return:"Devolução do comprador",
   withdrawal_reservation:"Retirada reservada",withdrawal_cancelation:"Retirada cancelada",withdrawal_delivery:"Retirada entregue",withdrawal_removal:"Removido após retirada",
   transfer_reservation:"Transferência reservada",transfer_ajustment:"Ajuste de transferência",transfer_delivery:"Transferência entregue",
   quarantine_reservation:"Em quarentena",quarantine_restock:"Voltou da quarentena",lost_refund:"Perdido (reembolsado)",damaged_removal:"Avariado removido",
-  removal_reservation:"Descarte reservado",removal_completion:"Descartado",ajustement:"Ajuste de estoque",stock_audit:"Auditoria de estoque"};
+  removal_reservation:"Descarte reservado",removal_completion:"Descartado",ajustement:"Ajuste de estoque",adjustment:"Ajuste de estoque",fiscal_coverage_adjustment:"Ajuste fiscal",stock_audit:"Auditoria de estoque"};
 const ML_GRUPO={inbound_reception:"ent",sale_return:"dev",sale_delivery_cancelation:"dev",sale_confirmation:"ven",sale_cancelation:"ven"};
 const BRL=v=>(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const n0=v=>(v||0).toLocaleString("pt-BR");
@@ -88,7 +88,8 @@ function gEstoque(){
       </tbody></table></div>${P.html}`;
   }
   const aviso=c.conectado&&c.offline===false?`<div class="lmsg err">Conexão temporária: o Mercado Livre não liberou o <b>acesso offline</b>, então ela vale só até ${c.expira?new Date(c.expira).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"algumas horas"}. No DevCenter, edite a aplicação, marque <b>offline_access</b> nas permissões, salve e clique em <button class="lnkbtn" data-act="ml-conectar">Conectar de novo</button>.</div>`:"";
-  return hdr+aviso+`${c.msg?`<div class="lmsg err">${esc(c.msg)} <button class="lnkbtn" data-act="ml-conectar">Conectar de novo</button></div>`:""}
+  const carga=c.carga?`<div class="lmsg">Carregando o histórico do Mercado Livre: movimentações lidas até ${new Date(c.carga).toLocaleDateString("pt-BR")}, indo para trás. Vendas, entradas e cobertura ficam completas quando terminar (o Mercado Livre libera aos poucos).</div>`:"";
+  return hdr+aviso+carga+`${c.msg?`<div class="lmsg err">${esc(c.msg)} <button class="lnkbtn" data-act="ml-conectar">Conectar de novo</button></div>`:""}
     <div class="sumrow">
       ${card(BRL(m.custoDisp),"custo disponível no Full",m.custoTot>m.custoDisp?`${BRL(m.custoTot)} com indisponíveis`:"")}
       ${card(n0(m.modelos),"modelos",`${n0(m.ativos.length)} anúncios`)}
@@ -96,7 +97,7 @@ function gEstoque(){
       ${card(m.cobMedia===null?"—":cobTxt(m.cobMedia),"cobertura média",`vendas dos últimos ${dias} dias`)}
     </div>
     <div class="sumrow">
-      ${card(n0(m.ent),"entradas",`nos últimos ${dias} dias`)}${card(n0(m.dev),"devoluções",`voltaram para venda`)}${card(n0(m.vend),"vendas","unidades/kits")}
+      ${card(n0(m.ent),"entradas de abastecimento",`envios ao Full nos últimos ${dias} dias`)}${card(n0(m.dev),"devoluções",`voltaram ao Full nos últimos ${dias} dias`)}${card(n0(m.vend),"vendas","unidades/kits")}
     </div>
     ${m.semVinc||m.semCusto?`<div class="lmsg">${m.semVinc?`${m.semVinc} anúncio${m.semVinc>1?"s":""} sem vínculo com produto do ERP (aba Vínculos). `:""}${m.semCusto?`${m.semCusto} anúncio${m.semCusto>1?"s":""} sem custo na planilha: ficam fora do custo total.`:""}</div>`:""}
     <div class="panel"><div class="fbar"><div class="busca2"><span aria-hidden="true">${LUPA}</span><input class="inp" id="mlQ" placeholder="Buscar anúncio, título, SKU ou modelo" value="${esc(DB.mlQ||"")}" aria-label="Buscar no estoque"></div>
@@ -108,13 +109,23 @@ function gEstoque(){
       ${corpo}</div>`;
 }
 
+const mlRef=(o,t)=>{ const r=(o.ref||[])[0]; if(!r) return ""; return r.type==="inbound_id"?`envio ao Full nº ${r.value}`:r.type==="shipment_id"?(t==="sale_confirmation"||t==="sale_cancelation"?`venda · envio ${r.value}`:`envio ${r.value}`):`${r.type} ${r.value}`; };
+/* recebimentos do mesmo envio ao Full (o ML confere em partes) viram uma linha só */
+function mlAgrupa(ops){ const out=[];
+  ops.forEach(o=>{ const ref=(o.ref||[])[0], k=o.tipo==="inbound_reception"&&ref?.type==="inbound_id"?ref.value:null;
+    const g=k&&out.find(x=>x.k===k);
+    if(g){ g.disp+=o.disp||0; g.indisp+=o.indisp||0; g.n++; g.ini=o.data; } else out.push({...o,k,n:1,ini:o.data,fim:o.data,disp:o.disp||0,indisp:o.indisp||0}); });
+  return out; }
 function mlHistHtml(l){ const h=DB.mlHist&&DB.mlHist.inv===l.inv?DB.mlHist:null;
   if(!h) return `<span class="muted">Carregando histórico…</span>`;
   if(!h.ops.length) return `<span class="muted">Nenhuma movimentação registrada ainda.</span>`;
-  return `<div class="mlh"><b>Histórico de ${esc(l.inv)}</b><table class="t"><thead><tr><th>Data</th><th>Movimento</th><th class="r">Disponível</th><th class="r">Indisp.</th><th class="r">Saldo</th></tr></thead><tbody>
-    ${h.ops.slice(0,200).map(o=>{ const g=ML_GRUPO[o.tipo]; return `<tr><td class="num">${new Date(o.data).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"})}</td><td><span class="mlt ${g||""}">${esc(ML_TIPOS[o.tipo]||o.tipo)}</span></td>
+  const dt=d=>new Date(d).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"});
+  const ops=mlAgrupa(h.ops);
+  return `<div class="mlh"><b>Histórico de ${esc(l.inv)}</b><table class="t"><thead><tr><th>Data</th><th>Movimento</th><th>Origem</th><th class="r">Disponível</th><th class="r">Indisp.</th><th class="r">Saldo</th></tr></thead><tbody>
+    ${ops.slice(0,200).map(o=>{ const g=ML_GRUPO[o.tipo]; return `<tr><td class="num">${o.n>1&&o.ini!==o.fim?`${dt(o.ini)}<div class="t2">até ${dt(o.fim)}</div>`:dt(o.fim)}</td>
+      <td><span class="mlt ${g||""}">${esc(ML_TIPOS[o.tipo]||o.tipo)}</span>${o.n>1?`<div class="t2">${o.n} conferências do mesmo envio</div>`:""}</td><td class="t2">${esc(mlRef(o,o.tipo))}</td>
       <td class="r num ${o.disp>0?"okmark":o.disp<0?"neg":""}">${o.disp>0?"+":""}${o.disp||"—"}</td><td class="r num">${o.indisp||"—"}</td><td class="r num">${o.saldo??"—"}</td></tr>`; }).join("")}
-    </tbody></table>${h.ops.length>200?`<span class="muted">Mostrando as 200 mais recentes.</span>`:""}</div>`; }
+    </tbody></table>${ops.length>200?`<span class="muted">Mostrando as 200 mais recentes.</span>`:""}</div>`; }
 
 /* planilha de custos: SKU + custo (aceita .xlsx e .csv) */
 async function lerCustos(input){ const f=input.files[0]; input.value=""; if(!f) return;
