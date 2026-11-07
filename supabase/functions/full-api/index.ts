@@ -70,8 +70,10 @@ async function mlToken() {
 async function mlGet(a: any, path: string) {
   for (let t = 0; t < 4; t++) {
     const r = await fetch(ML + path, { headers: { authorization: `Bearer ${a.access_token}`, accept: "application/json" } });
-    if (r.status === 429 || r.status >= 500) { await espera(1200 * (t + 1)); continue; }
-    const j = await r.json().catch(() => ({}));
+    if (r.status === 429 || r.status >= 500) { await espera(2000 * 2 ** t); continue; }
+    // ids das movimentações passam de 2^53: lê como texto para não perder precisão
+    const txt = (await r.text()).replace(/"id"\s*:\s*(\d{16,})/g, '"id":"$1"');
+    let j: any = {}; try { j = JSON.parse(txt); } catch { /* resposta vazia */ }
     if (!r.ok) throw new Erro(`Mercado Livre (${r.status}): ${j.message || path}`, 502);
     return j;
   }
@@ -81,7 +83,11 @@ const unico = <T>(xs: T[], k: (x: T) => string) => [...new Map(xs.map((x) => [k(
 async function emLotes<T>(xs: T[], n: number, fn: (x: T) => Promise<void>) { for (let i = 0; i < xs.length; i += n) await Promise.all(xs.slice(i, i + n).map(fn)); }
 const multTitulo = (t: string) => { const m = t.match(/^(?:kit\s*(?:com\s*)?)?(\d+)\s*(?:x|un\.?|unid\w*|p[çc]s?)\s/i) || t.match(/\bkit\s*(?:com\s*)?(\d+)\s*(?:x|un\.?|unid\w*|p[çc]s?)?\s/i); return m ? Math.max(1, +m[1]) : 1; };
 
+const qtdIndisp = (x: any) => Array.isArray(x?.not_available_detail) && x.not_available_detail.length
+  ? x.not_available_detail.reduce((s: number, d: any) => s + (+d.quantity || 0), 0) : +(x?.not_available_quantity ?? 0) || 0;
+
 async function mlSync(diasHist = 0) {
+  const t0 = Date.now();
   const a = await mlToken();
   // 1) anúncios com logística Full
   let ids: string[] = []; let scroll = "";
@@ -130,16 +136,24 @@ async function mlSync(diasHist = 0) {
   if (diasHist > 0) de = new Date(ate.getTime() - Math.min(diasHist, 730) * 86400000);
   const dia = (d: Date) => d.toISOString().slice(0, 10);
   let nOps = 0;
+  // o Mercado Livre limita esta consulta por cota: se estourar (ou o tempo acabar), guarda até onde chegou e a próxima sincronização continua dali
+  const parcial = async (w0: Date) => {
+    await q(db.from("full_ml_auth").update({ ultima_sync: new Date().toISOString(), ops_ate: new Date(w0.getTime() + 2 * 86400000).toISOString(), msg: null }).eq("id", 1));
+    return { anuncios: linhas.length, ops: nOps, parcial: true };
+  };
   for (let w0 = de; w0 < ate; w0 = new Date(w0.getTime() + 59 * 86400000)) {
     const w1 = new Date(Math.min(ate.getTime(), w0.getTime() + 59 * 86400000));
     for (let i = 0; i < invs.length; i += 20) {
+      if (Date.now() - t0 > 100000) return await parcial(w0);
       let sc = "";
       for (let p = 0; p < 50; p++) {
-        const j = await mlGet(a, `/stock/fulfillment/operations/search?seller_id=${a.user_id}&inventory_id=${invs.slice(i, i + 20).join(",")}&date_from=${dia(w0)}&date_to=${dia(w1)}&limit=1000${sc ? `&scroll=${sc}` : ""}`);
+        let j: any;
+        try { j = await mlGet(a, `/stock/fulfillment/operations/search?seller_id=${a.user_id}&inventory_id=${invs.slice(i, i + 20).join(",")}&date_from=${dia(w0)}&date_to=${dia(w1)}&limit=1000${sc ? `&scroll=${sc}` : ""}`); }
+        catch (e) { if (e instanceof Erro && e.s === 429) return await parcial(w0); throw e; }
         const rs = j.results || [];
         if (rs.length) {
           const rows = unico(rs.map((o: any) => ({ id: o.id, inv: o.inventory_id, data: o.date_created, tipo: String(o.type || "").toLowerCase(),
-            disp: +(o.detail?.available_quantity ?? 0) || 0, indisp: +(o.detail?.not_available_quantity ?? 0) || 0,
+            disp: +(o.detail?.available_quantity ?? 0) || 0, indisp: qtdIndisp(o.detail),
             saldo: o.result?.total ?? ((o.result?.available_quantity ?? 0) + (o.result?.not_available_quantity ?? 0)),
             ref: o.external_references || null, raw: { detail: o.detail || null, result: o.result || null } })), (o: any) => String(o.id));
           await q(db.from("full_ml_ops").upsert(rows)); nOps += rows.length;
