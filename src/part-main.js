@@ -61,9 +61,9 @@ function prepBipe(u){ if(modoDe(u)==="camera"){ FOCUS=null; AUTOCAM=u; } else { 
 function posRender(){ const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur);
   if(CAM){ const o=$("#camopen"); if(o) o.hidden=true; }
   if(AUTOCAM&&e){ const u=AUTOCAM; AUTOCAM=null; if($("#camwrap")&&!CAM) camLiga(e,u); } }
-document.addEventListener("focusout",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo==="camera"||DB.digitar) return;
+document.addEventListener("focusout",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo==="camera") return;
   setTimeout(()=>{ const a=document.activeElement; if(a&&a!==document.body&&a.tagName!=="HTML") return; const n=document.getElementById(t.id); if(n) n.focus({preventScroll:true}); },180); });
-let COL_T=null, KBUF="", KT=0;
+let COL_T=null, KBUF="", KT=0, LAST_SCAN={v:"",t:0};
 /* leitor no modo teclado mesmo sem o campo focado: junta as teclas rápidas e manda para o campo de bipe */
 document.addEventListener("keydown",ev=>{ const f=document.querySelector("form.pscan"); if(!f||f.dataset.modo==="camera") return;
   const inp=f.querySelector("input"); if(document.activeElement===inp) return;
@@ -150,9 +150,9 @@ document.addEventListener("click",ev=>{
       DB.ph[pk]={scr:"pick",cod,msg:null}; prepBipe(u); window.scrollTo(0,0); break; }
     case "p-open": DB.ph[pk]={scr:"pick",cod:b.dataset.cod,msg:null}; prepBipe(u); break;
     case "p-cfg": { const ph=DB.ph[pk]||(DB.ph[pk]={scr:"lista"}); ph.cfg=!ph.cfg; break; }
-    case "p-modo": { const m=b.dataset.m; if(DB.users[u]) DB.users[u].modo=m; const ph=DB.ph[pk]; if(ph) ph.cfg=false; DB.digitar=false; if(m!=="camera") camDesliga();
+    case "p-modo": { const m=b.dataset.m; if(DB.users[u]) DB.users[u].modo=m; const ph=DB.ph[pk]; if(ph) ph.cfg=false; if(m!=="camera") camDesliga();
       api("modo",{modo:m,login:u}).catch(x=>toast(x.message)); toast("Bipagem atualizada"); prepBipe(u); break; }
-    case "p-digitar": DB.digitar=!DB.digitar; FOCUS=`pscan-${u}`; break;
+    case "p-digitar": { const md=modoDe(u); localStorage.setItem("envio-full-teclado-"+md,tecladoOn(md)?"0":"1"); FOCUS=`pscan-${u}`; break; }
     case "p-back": camDesliga(); DB.ph[pk]={scr:"lista"}; break;
     case "p-mais": phScan(e,u,null); atualizaPick(); return;
     case "p-tudo": { const it=itens(e).find(i=>i.cod===b.dataset.cod); if(b.dataset.ok!=="1"){ b.dataset.ok="1"; b.textContent=`Confirmar: peguei as ${it.pecas} peças`; return; }
@@ -188,7 +188,12 @@ document.addEventListener("submit",ev=>{
     acao(async()=>{ await api("vinc",{inv,cod:v.cod,mult}); DB.edAn=null; },"Peças por kit atualizadas"); return; }
   if(f.id==="mlDiasF"){ ev.preventDefault(); const d=Math.min(365,Math.max(1,parseInt($("#mlDias").value,10)||30)); DB.mlDias=d; mlCarregar(); return; }
   if(f.id==="lblForm"){ ev.preventDefault(); lblScan(e,$("#lscan").value); FOCUS=DB.lbl?"lscan":null; render(); }
-  else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; clearTimeout(COL_T); phScan(e,u,f.querySelector("input").value); FOCUS=f.dataset.modo==="camera"&&!DB.digitar?null:`pscan-${u}`; render(); }
+  else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; clearTimeout(COL_T); const val=f.querySelector("input").value;
+    /* leitores que mandam Enter duplo (CR+LF) geram um envio vazio logo depois do bipe: ignora sem avisar */
+    const dig=val.replace(/\D/g,""), agora=Date.now();
+    if(dig.length<6||(dig===LAST_SCAN.v&&agora-LAST_SCAN.t<250)){ f.querySelector("input").value=""; return; }
+    LAST_SCAN={v:dig,t:agora};
+    phScan(e,u,val); FOCUS=f.dataset.modo==="camera"&&!tecladoOn("camera")?null:`pscan-${u}`; render(); }
   else if(f.id==="uForm"){ ev.preventDefault(); const d={login:$("#uLogin").value.trim().toLowerCase(),nome:$("#uNome").value.trim(),role:$("#uRole").value,modo:$("#uModo").value,pin:$("#uPin").value.trim(),ativo:$("#uAtivo").checked};
     acao(async()=>{ await api("user",d); DB.uEdit=null; },"Usuário salvo."); }
 });

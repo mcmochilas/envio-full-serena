@@ -449,6 +449,8 @@ const modoDe=u=>(DB.users[u]&&DB.users[u].modo)||"camera";
 
 /* EAN para validar o bipe: sempre o cadastro do app de Picking */
 const eanOf=cod=>((DB.eans||{})[cod]||"").trim();
+/* teclado do celular no campo de bipe: o coletor costuma precisar dele ativo para entregar o código; escolha fica salva no aparelho */
+const tecladoOn=md=>{ const v=localStorage.getItem("envio-full-teclado-"+md); return v===null?md==="coletor":v==="1"; };
 /* parsers compartilhados (navegador e node) */
 function zplDecode(s){ return s.replace(/(?:_[0-9A-F]{2})+/g, m=>{ const b=m.split("_").filter(Boolean).map(h=>parseInt(h,16)); try{ return new TextDecoder().decode(new Uint8Array(b)); }catch(e){ return m; } }); }
 function parseZPL(text){
@@ -1082,8 +1084,8 @@ function phoneHtml(e,u,mode){
       ${full?`<button class="btn btn-dark pbig" data-act="p-done" data-u="${u}" data-cod="${it.cod}">Coletei tudo · liberar etiquetas</button>`
       :`${md==="camera"?(('BarcodeDetector' in window)?`<div id="camwrap" hidden><video id="cam" playsinline muted></video><button class="btn btn-sm" data-act="p-camx">Fechar câmera</button></div><button class="btn btn-dark pbig" id="camopen" data-act="p-cam" data-u="${u}">Abrir câmera para bipar</button>`
           :`<div class="lmsg err">Este navegador não lê código pela câmera. Use o Chrome no Android ou troque o modo de bipagem na engrenagem.</div>`):""}
-        <form class="pscan" data-u="${u}" data-modo="${md}" autocomplete="off"><input class="inp" id="pscan-${u}" placeholder="${md==="camera"?"Ou digite o código":"Bipe a peça"}" inputmode="${md==="camera"||DB.digitar?"numeric":"none"}" aria-label="Código da peça"><button class="btn btn-dark" type="submit">OK</button></form>
-        ${md!=="camera"?`<div class="pmodohint"><span class="t2">${ph.lido?`Último código lido: <span class="mono">${esc(ph.lido)}</span>`:md==="bluetooth"?"Leitor Bluetooth: pode bipar direto.":"Coletor: pode bipar direto."}</span><button class="lnkbtn" data-act="p-digitar">${DB.digitar?"Esconder teclado":"Digitar código"}</button></div>`:""}
+        <form class="pscan" data-u="${u}" data-modo="${md}" autocomplete="off"><input class="inp" id="pscan-${u}" placeholder="${md==="camera"?"Ou digite o código":"Bipe a peça"}" inputmode="${md==="camera"||tecladoOn(md)?"numeric":"none"}" aria-label="Código da peça"><button class="btn btn-dark" type="submit">OK</button></form>
+        ${md!=="camera"?`<div class="pmodohint"><span class="t2">${ph.lido?`Último código lido: <span class="mono">${esc(ph.lido)}</span>`:md==="bluetooth"?"Leitor Bluetooth: pode bipar direto.":"Coletor: pode bipar direto."}</span><button class="lnkbtn" data-act="p-digitar">${tecladoOn(md)?"Esconder teclado":"Mostrar teclado"}</button></div>`:""}
         <div class="acts"><button class="btn" style="flex:1" data-act="p-mais" data-u="${u}">Contar sem bipe (+1)</button><button class="btn" style="flex:1" data-act="p-tudo" data-u="${u}" data-cod="${it.cod}">Contei tudo (${it.pecas})</button></div>`}
       <button class="lnkbtn" data-act="p-solta" data-u="${u}" data-cod="${it.cod}">Devolver este item para a lista</button>
     </div>`;
@@ -1204,9 +1206,9 @@ function prepBipe(u){ if(modoDe(u)==="camera"){ FOCUS=null; AUTOCAM=u; } else { 
 function posRender(){ const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur);
   if(CAM){ const o=$("#camopen"); if(o) o.hidden=true; }
   if(AUTOCAM&&e){ const u=AUTOCAM; AUTOCAM=null; if($("#camwrap")&&!CAM) camLiga(e,u); } }
-document.addEventListener("focusout",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo==="camera"||DB.digitar) return;
+document.addEventListener("focusout",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo==="camera") return;
   setTimeout(()=>{ const a=document.activeElement; if(a&&a!==document.body&&a.tagName!=="HTML") return; const n=document.getElementById(t.id); if(n) n.focus({preventScroll:true}); },180); });
-let COL_T=null, KBUF="", KT=0;
+let COL_T=null, KBUF="", KT=0, LAST_SCAN={v:"",t:0};
 /* leitor no modo teclado mesmo sem o campo focado: junta as teclas rápidas e manda para o campo de bipe */
 document.addEventListener("keydown",ev=>{ const f=document.querySelector("form.pscan"); if(!f||f.dataset.modo==="camera") return;
   const inp=f.querySelector("input"); if(document.activeElement===inp) return;
@@ -1293,9 +1295,9 @@ document.addEventListener("click",ev=>{
       DB.ph[pk]={scr:"pick",cod,msg:null}; prepBipe(u); window.scrollTo(0,0); break; }
     case "p-open": DB.ph[pk]={scr:"pick",cod:b.dataset.cod,msg:null}; prepBipe(u); break;
     case "p-cfg": { const ph=DB.ph[pk]||(DB.ph[pk]={scr:"lista"}); ph.cfg=!ph.cfg; break; }
-    case "p-modo": { const m=b.dataset.m; if(DB.users[u]) DB.users[u].modo=m; const ph=DB.ph[pk]; if(ph) ph.cfg=false; DB.digitar=false; if(m!=="camera") camDesliga();
+    case "p-modo": { const m=b.dataset.m; if(DB.users[u]) DB.users[u].modo=m; const ph=DB.ph[pk]; if(ph) ph.cfg=false; if(m!=="camera") camDesliga();
       api("modo",{modo:m,login:u}).catch(x=>toast(x.message)); toast("Bipagem atualizada"); prepBipe(u); break; }
-    case "p-digitar": DB.digitar=!DB.digitar; FOCUS=`pscan-${u}`; break;
+    case "p-digitar": { const md=modoDe(u); localStorage.setItem("envio-full-teclado-"+md,tecladoOn(md)?"0":"1"); FOCUS=`pscan-${u}`; break; }
     case "p-back": camDesliga(); DB.ph[pk]={scr:"lista"}; break;
     case "p-mais": phScan(e,u,null); atualizaPick(); return;
     case "p-tudo": { const it=itens(e).find(i=>i.cod===b.dataset.cod); if(b.dataset.ok!=="1"){ b.dataset.ok="1"; b.textContent=`Confirmar: peguei as ${it.pecas} peças`; return; }
@@ -1331,7 +1333,12 @@ document.addEventListener("submit",ev=>{
     acao(async()=>{ await api("vinc",{inv,cod:v.cod,mult}); DB.edAn=null; },"Peças por kit atualizadas"); return; }
   if(f.id==="mlDiasF"){ ev.preventDefault(); const d=Math.min(365,Math.max(1,parseInt($("#mlDias").value,10)||30)); DB.mlDias=d; mlCarregar(); return; }
   if(f.id==="lblForm"){ ev.preventDefault(); lblScan(e,$("#lscan").value); FOCUS=DB.lbl?"lscan":null; render(); }
-  else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; clearTimeout(COL_T); phScan(e,u,f.querySelector("input").value); FOCUS=f.dataset.modo==="camera"&&!DB.digitar?null:`pscan-${u}`; render(); }
+  else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; clearTimeout(COL_T); const val=f.querySelector("input").value;
+    /* leitores que mandam Enter duplo (CR+LF) geram um envio vazio logo depois do bipe: ignora sem avisar */
+    const dig=val.replace(/\D/g,""), agora=Date.now();
+    if(dig.length<6||(dig===LAST_SCAN.v&&agora-LAST_SCAN.t<250)){ f.querySelector("input").value=""; return; }
+    LAST_SCAN={v:dig,t:agora};
+    phScan(e,u,val); FOCUS=f.dataset.modo==="camera"&&!tecladoOn("camera")?null:`pscan-${u}`; render(); }
   else if(f.id==="uForm"){ ev.preventDefault(); const d={login:$("#uLogin").value.trim().toLowerCase(),nome:$("#uNome").value.trim(),role:$("#uRole").value,modo:$("#uModo").value,pin:$("#uPin").value.trim(),ativo:$("#uAtivo").checked};
     acao(async()=>{ await api("user",d); DB.uEdit=null; },"Usuário salvo."); }
 });

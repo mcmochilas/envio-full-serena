@@ -96,3 +96,5 @@ const modoDe=u=>(DB.users[u]&&DB.users[u].modo)||"camera";
 
 /* EAN para validar o bipe: sempre o cadastro do app de Picking */
 const eanOf=cod=>((DB.eans||{})[cod]||"").trim();
+/* teclado do celular no campo de bipe: o coletor costuma precisar dele ativo para entregar o código; escolha fica salva no aparelho */
+const tecladoOn=md=>{ const v=localStorage.getItem("envio-full-teclado-"+md); return v===null?md==="coletor":v==="1"; };
