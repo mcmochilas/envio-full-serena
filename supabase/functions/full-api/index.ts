@@ -1,4 +1,4 @@
-// Envio Full Serena — API única (login usuário+PIN, QR do celular, envios, separação)
+// Envio Full Serena — API única (login usuário+PIN, QR do celular, envios, separação, estoque no Full)
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
@@ -228,6 +228,7 @@ Deno.serve(async (req) => {
     if (!me) throw new Erro(req.headers.get("x-full-qr") ? "Link inválido ou expirado." : "Sessão expirada. Entre de novo.", 401);
     const gestor = me.role === "gestor";
     const doEnvio = (id: string) => { must(!me.qrEnvio || me.qrEnvio === id, "Este link não é deste envio."); };
+    if (me.role === "sistema") must(op === "ml_sync", "Operação não permitida.");
 
     switch (op) {
       case "logout": await db.from("full_sessions").delete().eq("token", req.headers.get("x-full-token") || ""); return out({ ok: true });
