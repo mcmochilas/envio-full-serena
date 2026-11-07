@@ -68,9 +68,8 @@ function posRender(){ const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur);
   if(!mk){ if(!bar.hidden){ bar.hidden=true; inp.value=""; document.body.classList.remove("comscan"); } return; }
   /* coletor (leitor embutido): o leitor do aparelho entrega o código pelo teclado do Android, então o campo precisa
      aceitar texto (igual ao app de Picking). Leitor Bluetooth: teclado escondido. Câmera: só para digitar. */
-  const md=mk.dataset.modo, im=md==="coletor"?"text":md==="camera"||tecladoOn(md)?"numeric":"none";
+  const md=mk.dataset.modo, im=md==="camera"||tecladoOn(md)?"numeric":"none";
   bar.dataset.u=mk.dataset.u; bar.dataset.modo=md; if(inp.getAttribute("inputmode")!==im) inp.setAttribute("inputmode",im);
-  inp.setAttribute("enterkeyhint",md==="coletor"?"done":"go");
   inp.placeholder=md==="coletor"?"Coletor pronto: aperte o gatilho":md==="camera"?"Ou digite o código e toque OK":tecladoOn(md)?"Digite o código e toque OK":"Leitor pronto: bipe a peça";
   bar.hidden=false; document.body.classList.add("comscan");
   if(md!=="camera"&&!CAM) focoScan(); }
@@ -85,12 +84,7 @@ function scanEnvia(raw){ const bar=document.getElementById("scanbar"), inp=SC();
   LAST_SCAN={v:dig,t:agora}; phScan(e,u,raw); render(); }
 function scanInit(){ const inp=SC(); if(!inp||inp.dataset.ok) return; inp.dataset.ok="1";
   inp.addEventListener("keydown",ev=>{ if(ev.key==="Enter"||ev.key==="Tab"){ ev.preventDefault(); scanEnvia(inp.value); } });
-  /* leitores sem Enter no final: envia quando o código bate com o EAN esperado ou quando a digitação para */
-  inp.addEventListener("input",()=>{ clearTimeout(COL_T); const md=document.getElementById("scanbar").dataset.modo;
-    if(md==="camera"||(md!=="coletor"&&inp.getAttribute("inputmode")!=="none")) return;
-    const ph=DB.ph["_m"], esp=ph&&ph.cod?eanOf(ph.cod):"", v=inp.value.trim();
-    if(esp&&eanBate(v,esp)){ COL_T=setTimeout(()=>scanEnvia(inp.value),80); return; }
-    COL_T=setTimeout(()=>{ if(inp.value.replace(/\D/g,"").length>=8) scanEnvia(inp.value); },250); });
+  /* sem envio automático por pausa: leitor e coletor mandam Enter no fim (enviar na pausa cortava o código ao meio) */
   document.getElementById("scanf").addEventListener("submit",ev=>{ ev.preventDefault(); scanEnvia(inp.value); focoScan(); });
   /* tocou fora: o campo volta a ficar pronto para o leitor */
   inp.addEventListener("blur",()=>{ if(document.getElementById("scanbar").dataset.modo==="camera") return; setTimeout(focoScan,200); });
