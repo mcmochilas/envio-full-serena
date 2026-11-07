@@ -15,7 +15,7 @@ function parsePrevendaLines(lines){
   const pv=((lines.join("\n").match(/Pré-venda\s*-\s*(\d+)/)||[])[1])||"";
   const itens=[];
   lines.forEach((l,i)=>{ const m=l.match(/(?:^|\s)(\d{5})\s+(.*?)\s*UN\s+([\d.]+),\d{3}/); if(!m) return;
-    let prev=""; for(let j=i-1;j>=Math.max(0,i-2);j--){ if(lines[j].trim()&&!/\d{13}/.test(lines[j])&&!/Itens da|Cód\.|Produto|Imagem/.test(lines[j])){ prev=lines[j].trim(); break; } }
+    let prev=""; for(let j=i-1;j>=Math.max(0,i-2);j--){ if(/(?:^|\s)\d{5}\s+.*?UN\s+[\d.]+,\d{3}/.test(lines[j])) break; if(lines[j].trim()&&!/\d{13}/.test(lines[j])&&!/Itens da|Cód\.|Produto|Imagem/.test(lines[j])){ prev=lines[j].replace(/Sem imagem/g,"").trim(); break; } }
     let ean=""; for(let j=i+1;j<=i+2&&j<lines.length;j++){ const e=lines[j].match(/(\d{13})/); if(e){ ean=e[1]; break; } }
     itens.push({cod:m[1],nome:(prev+" "+m[2].replace(/Sem imagem/,"")).replace(/\s+/g," ").trim(),qtd:parseInt(m[3].replace(/\./g,""),10),ean}); });
   return {pv,itens};

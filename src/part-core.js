@@ -89,3 +89,7 @@ function logE(e,msg){ e.log.push({t:now(),msg}); if(e.log.length>200) e.log.shif
 let actx=null;
 function beep(ok){ if(DB.mute) return; try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); let t=actx.currentTime;
   (ok?[[1320,.07]]:[[220,.12],[180,.16]]).forEach(([f,d])=>{ const o=actx.createOscillator(),g=actx.createGain(); o.frequency.value=f; o.type=ok?"sine":"square"; g.gain.value=.08; o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t+d); t+=d+.04; }); }catch(x){} }
+
+const MODOS=[["camera","Câmera do celular"],["bluetooth","Leitor Bluetooth"],["coletor","Coletor de dados"]];
+const modoTxt=m=>(MODOS.find(x=>x[0]===m)||MODOS[0])[1];
+const modoDe=u=>(DB.users[u]&&DB.users[u].modo)||"camera";

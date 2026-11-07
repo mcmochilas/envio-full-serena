@@ -33,7 +33,7 @@ function delBtn(e){ const pend=DB.delPend&&DB.delPend.id===e.id&&Date.now()-DB.d
   return pend?`<button class="xdel on" data-act="delenv" data-id="${e.id}" title="Confirmar exclusão do envio #${e.id}.${aviso}">${XSVG}<span>Excluir?</span></button>`
     :`<button class="xdel" data-act="delenv" data-id="${e.id}" title="Excluir envio #${e.id}" aria-label="Excluir envio #${e.id}">${XSVG}</button>`; }
 const LAPIS=`<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M11.2 2.3a1.5 1.5 0 0 1 2.1 0l.4.4a1.5 1.5 0 0 1 0 2.1L6 12.5 2.5 13.5l1-3.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
-function anCel(e,a,mult){ const ed=DB.edAn; const txt=mult===1?"1 (unidade)":mult;
+function anCel(e,a,mult){ const ed=DB.edAn; const txt=`${mult} un`;
   if(ed&&ed.id===e.id&&ed.inv===a.inv)
     return `<form class="anEd" data-id="${e.id}" data-inv="${esc(a.inv)}"><input class="inp" id="anEdIn" type="number" min="1" max="999" step="1" value="${mult}" aria-label="Peças por kit do anúncio ${esc(a.inv)}"><button class="ebtn ok" type="submit" title="Salvar" aria-label="Salvar">✓</button><button class="ebtn" type="button" data-act="anEdX" title="Cancelar" aria-label="Cancelar">×</button></form>`;
   return `<span class="anv">${txt}<button class="pen" data-act="anEd" data-id="${e.id}" data-inv="${esc(a.inv)}" title="Editar peças por kit" aria-label="Editar peças por kit do anúncio ${esc(a.inv)}">${LAPIS}</button></span>`; }
@@ -83,6 +83,10 @@ function gDet(e){
   ${!pv.length&&c.div.length?`<div class="tbox" style="border:1px solid var(--line2)"><table class="t"><thead><tr><th>Diferença entre envio e pré-venda</th><th class="r">Envio</th><th class="r">Pré-venda</th><th class="r">Ação</th></tr></thead><tbody>${c.div.map(r=>`<tr><td><span class="mono">${r.cod}</span> · ${esc(nomeCod(r.cod))}</td><td class="r num">${r.x.pecas}</td><td class="r num">${r.p}</td><td class="r">${r.d<0&&e.status!=="concluido"?`<button class="btn btn-sm" data-act="addpre" data-id="${e.id}" data-cod="${r.cod}">${LUPA} Adicionar ${-r.d} à pré-venda</button>`:`<span class="muted">sobram ${r.d} na pré-venda</span>`}</td></tr>`).join("")}</tbody></table></div>`:""}
   ${Object.keys(e.manual||{}).length?`<div class="manbox"><div class="mhd">${LUPA} <b>Itens adicionados manualmente à pré-venda</b></div>
     ${Object.entries(e.manual).map(([cod,x])=>`<div class="mrow"><span><span class="mono">${cod}</span> · ${esc(nomeCod(cod))} · <b>+${x.qtd} peças</b><br><span class="muted">por ${esc(nomeU(x.por))} em ${esc(new Date(x.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))} · lembre de lançar também no ERP</span></span>${e.status!=="concluido"?`<button class="btn btn-sm" data-act="rmpre" data-id="${e.id}" data-cod="${cod}">Remover</button>`:""}</div>`).join("")}</div>`:""}
+  ${e.status!=="concluido"?`<div class="upd"><span class="muted">Mudou alguma coisa no Mercado Livre ou no ERP?</span>
+    <label class="btn btn-sm">Subir pré-venda atualizada (PDF)<input type="file" id="fUpPdf" data-id="${e.id}" accept=".pdf,application/pdf" multiple hidden></label>
+    <label class="btn btn-sm">Subir etiquetas atualizadas (.txt)<input type="file" id="fUpEtq" data-id="${e.id}" accept=".txt,text/plain" multiple hidden></label>
+    ${e.status==="liberado"?`<span class="muted" style="flex-basis:100%">O que já foi separado e etiquetado continua valendo.</span>`:""}</div>`:""}
   <details class="oklist" ${DB.openAn===e.id?"open":""} data-an="${e.id}"><summary>Ver os ${e.anuncios.length} anúncios</summary>
   <div class="tbox" style="border:1px solid var(--line2);margin-top:8px"><table class="t"><thead><tr><th>Anúncio</th><th>Título no ML</th><th class="r">Etiquetas</th><th>Produto ERP</th><th class="r">Peças por kit</th><th class="r">Peças</th></tr></thead><tbody>
   ${(()=>{ const P=pager("an-"+e.id,e.anuncios.length,15); DB._p=P; return e.anuncios.slice(P.ini,P.fim).map(a=>{const v=V(a.inv);return `<tr class="${v.cod?"":"flag"}"><td class="mono">${esc(a.inv)}</td><td>${esc(a.titulo)}</td><td class="r num">${a.etiquetas}</td><td>${v.cod?`${v.cod} · ${esc(nomeCod(v.cod))}`:`<span class="tag tag-warn">sem vínculo</span>`}</td><td class="r num">${v.cod?anCel(e,a,v.mult):"—"}</td><td class="r num">${v.cod?a.etiquetas*v.mult:"—"}</td></tr>`;}).join(""); })()}
@@ -118,6 +122,24 @@ function comboBusca(inp){
   clearTimeout(BUSCA_T); if(q.length<2) return;
   BUSCA_T=setTimeout(async()=>{ try{ const r=await api("prod",{q:raw}); if(inp.value.trim()!==raw||document.activeElement!==inp) return; const m=new Map(loc.map(p=>[p.cod,p])); r.itens.forEach(p=>{ if(!m.has(p.cod)) m.set(p.cod,p); }); desenha([...m.values()].slice(0,10),false); }catch(e){ desenha(loc,false); } },300);
 }
+async function lerEtqFiles(files){ const map=new Map(); let id=null;
+  for(const f of files){ const m=f.name.match(/Envio-(\d+)/); if(m) id=m[1]; parseZPL(await f.text()).forEach(a=>{ const x=map.get(a.inv); if(x) x.etiquetas+=a.etiquetas; else map.set(a.inv,a); }); }
+  return {id,anuncios:[...map.values()]}; }
+async function lerPreFiles(files){ if(!window.pdfjsLib) throw new Error("o leitor de PDF não carregou. Verifique a conexão e tente de novo");
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const pre={}, pvs=[], erp={};
+  for(const f of files){ const r=parsePrevendaLines(await pdfLines(pdfjsLib,new Uint8Array(await f.arrayBuffer()))); if(!r.itens.length) throw new Error(`não reconheci itens em ${f.name}`);
+    const pv=r.pv||f.name; pvs.push(pv); r.itens.forEach(it=>{ (pre[it.cod]=pre[it.cod]||{})[pv]=((pre[it.cod]||{})[pv]||0)+it.qtd; erp[it.cod]={nome:it.nome,ean:it.ean}; }); }
+  return {pre,pvs,erp}; }
+async function atualizarEnvio(input){ const id=input.dataset.id, files=[...input.files]; input.value=""; if(!files.length) return;
+  try{ if(input.id==="fUpEtq"){ const r=await lerEtqFiles(files); if(!r.anuncios.length) return toast("Não encontrei etiquetas nesses arquivos.");
+      if(r.id&&r.id!==id) return toast(`Esses arquivos são do envio #${r.id}, não do #${id}.`);
+      const vinc={}; r.anuncios.forEach(a=>{ if(DB.vinc[a.inv]?.cod) return; const s=sugestaoVinc(a); vinc[a.inv]={cod:DB.erp[s.cod]?s.cod:"",mult:s.mult}; });
+      const antes=env(id), n0=antes?tot(antes):0, n1=r.anuncios.reduce((t,a)=>t+a.etiquetas,0);
+      acao(()=>api("atualizar",{id,anuncios:r.anuncios,vinc}),`Etiquetas atualizadas: ${r.anuncios.length} anúncios, ${n1} etiquetas (antes ${n0}).`); }
+    else { const r=await lerPreFiles(files); acao(()=>api("atualizar",{id,pre:r.pre,pvs:r.pvs,erp:r.erp}),`Pré-venda atualizada (${r.pvs.join(", ")}).`); } }
+  catch(x){ toast("Não consegui ler o arquivo: "+x.message); }
+}
 async function lerArquivos(input){
   const I=DB.imp||(DB.imp={anuncios:[],pre:{},pvs:[],vinc:{},erpNovos:{}});
   I.msg=null;
@@ -152,11 +174,12 @@ function gUsers(){
       <div class="fld"><label for="uLogin">Login</label><input class="inp" id="uLogin" value="${esc(ed.login||"")}" ${ed.novo?"":"readonly"} placeholder="ex.: ana" autocapitalize="none"></div>
       <div class="fld"><label for="uNome">Nome</label><input class="inp" id="uNome" value="${esc(ed.nome||"")}" placeholder="Nome que aparece no app"></div>
       <div class="fld"><label for="uRole">Perfil</label><select class="inp" id="uRole" style="height:46px"><option value="expedicao" ${ed.role!=="gestor"?"selected":""}>Expedição</option><option value="gestor" ${ed.role==="gestor"?"selected":""}>Gestor</option></select></div>
+      <div class="fld"><label for="uModo">Bipagem no celular</label><select class="inp" id="uModo" style="height:46px">${MODOS.map(([k,t])=>`<option value="${k}" ${(ed.modo||"camera")===k?"selected":""}>${t}</option>`).join("")}</select></div>
       <div class="fld"><label for="uPin">${ed.novo?"PIN (4 números)":"Novo PIN (deixe em branco para manter)"}</label><input class="inp" id="uPin" inputmode="numeric" maxlength="4" pattern="[0-9]*"></div>
     </div>
     <label class="hint" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="uAtivo" ${ed.ativo!==false?"checked":""}> Ativo</label>
     <div class="acts"><button class="btn btn-dark" type="submit">Salvar</button><button class="btn" type="button" data-act="uCancel">Cancelar</button></div></form>`:""}
-  <div class="tbox"><table class="t"><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Situação</th><th></th></tr></thead><tbody>
-  ${us.slice(P.ini,P.fim).map(u=>`<tr><td>${esc(u.nome)}</td><td class="mono">${esc(u.login)}</td><td>${u.role==="gestor"?"Gestor":"Expedição"}</td><td>${u.ativo!==false?`<span class="tag tag-ok">Ativo</span>`:`<span class="tag tag-off">Inativo</span>`}</td><td class="r"><button class="btn btn-sm" data-act="uEdit" data-u="${esc(u.login)}">Editar</button></td></tr>`).join("")}
+  <div class="tbox"><table class="t"><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Bipagem</th><th>Situação</th><th></th></tr></thead><tbody>
+  ${us.slice(P.ini,P.fim).map(u=>`<tr><td>${esc(u.nome)}</td><td class="mono">${esc(u.login)}</td><td>${u.role==="gestor"?"Gestor":"Expedição"}</td><td>${modoTxt(u.modo)}</td><td>${u.ativo!==false?`<span class="tag tag-ok">Ativo</span>`:`<span class="tag tag-off">Inativo</span>`}</td><td class="r"><button class="btn btn-sm" data-act="uEdit" data-u="${esc(u.login)}">Editar</button></td></tr>`).join("")}
   </tbody></table></div>${P.html}`;
 }

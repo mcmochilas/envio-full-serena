@@ -2,7 +2,7 @@
 /* celular: #s-<token> (gerado no servidor, vale só para um envio e uma pessoa); sem login */
 function rota(){ const m=location.hash.match(/^#s-([\w-]+)/); DB.qr=m?m[1]:null; if(!m){ DB.mobile=null; DB.mobileU=null; } }
 rota();
-function render(){ render0(); if(FOCUS==="anEdIn"){ const f=document.getElementById("anEdIn"); if(f){ f.focus(); f.select(); } } const m=document.querySelector(".mdl");
+function render(){ render0(); try{ posRender(); }catch(x){} if(FOCUS==="anEdIn"){ const f=document.getElementById("anEdIn"); if(f){ f.focus(); f.select(); } } const m=document.querySelector(".mdl");
   if(DB.ajuda&&!DB.qr){ if(!m){ document.body.insertAdjacentHTML("beforeend",ajudaHtml()); document.body.style.overflow="hidden"; const x=document.querySelector(".mdl .hbtn"); if(x) x.focus(); } }
   else if(m){ m.remove(); document.body.style.overflow=""; const h=document.querySelector('[data-act="ajuda"]'); if(h) h.focus(); } }
 document.addEventListener("keydown",ev=>{ if(ev.key==="Escape"&&DB.edAn&&ev.target.id==="anEdIn"){ DB.edAn=null; render(); return; } if(!DB.ajuda) return; if(ev.key==="Escape"){ DB.ajuda=false; render(); }
@@ -50,11 +50,22 @@ let CAM=null;
 async function camLiga(e,u){
   const w=$("#camwrap"), v=$("#cam"); if(!w||!v) return;
   try{ const det=new BarcodeDetector({formats:["ean_13","ean_8","code_128","upc_a"]}); const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
-    v.srcObject=st; await v.play(); w.hidden=false; CAM={st,ultimo:"",t:0};
+    v.srcObject=st; await v.play(); w.hidden=false; CAM={st,ultimo:"",t:0}; const o=$("#camopen"); if(o) o.hidden=true;
     const loop=async()=>{ if(!CAM) return; try{ const r=await det.detect(v); if(r[0]){ const c=r[0].rawValue, agora=Date.now(); if(c!==CAM.ultimo||agora-CAM.t>1200){ CAM.ultimo=c; CAM.t=agora; phScan(e,u,c); atualizaPick(); } } }catch(x){} if(CAM) setTimeout(loop,250); };
     loop(); }
   catch(x){ toast("Não foi possível abrir a câmera."); }
 }
+/* modo de bipagem: câmera abre sozinha; leitor/coletor deixam o campo sempre pronto */
+let AUTOCAM=null;
+function prepBipe(u){ if(modoDe(u)==="camera"){ FOCUS=null; AUTOCAM=u; } else { FOCUS=`pscan-${u}`; AUTOCAM=null; } }
+function posRender(){ const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur);
+  if(CAM){ const o=$("#camopen"); if(o) o.hidden=true; }
+  if(AUTOCAM&&e){ const u=AUTOCAM; AUTOCAM=null; if($("#camwrap")&&!CAM) camLiga(e,u); } }
+document.addEventListener("focusout",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo==="camera"||DB.digitar) return;
+  setTimeout(()=>{ const a=document.activeElement; if(a&&a!==document.body&&a.tagName!=="HTML") return; const n=document.getElementById(t.id); if(n) n.focus({preventScroll:true}); },180); });
+let COL_T=null;
+document.addEventListener("input",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo!=="coletor") return;
+  clearTimeout(COL_T); COL_T=setTimeout(()=>{ if(t.value.trim().length>=8&&document.body.contains(f)) f.requestSubmit(); },140); });
 function camDesliga(){ if(CAM){ CAM.st.getTracks().forEach(t=>t.stop()); CAM=null; } }
 function atualizaPick(){ const cam=CAM; if(cam){ const v=$("#cam"); const w=$("#camwrap"); render(); const v2=$("#cam"), w2=$("#camwrap"); if(v2&&w2){ v2.srcObject=cam.st; v2.play(); w2.hidden=false; } else camDesliga(); } else render(); }
 
@@ -112,8 +123,12 @@ document.addEventListener("click",ev=>{
     /* celular */
     case "p-pega": { const cod=b.dataset.cod; const s0=sepOf(e,cod); if(s0.status!=="livre"){ toast("Outra pessoa já pegou este item."); break; }
       otim(e,cod,"pega",{},`começou a separar ${nomeCod(cod)}`,s=>Object.assign(s,{status:"separando",resp:u,n:0}));
-      DB.ph[pk]={scr:"pick",cod,msg:null}; FOCUS=`pscan-${u}`; window.scrollTo(0,0); break; }
-    case "p-open": DB.ph[pk]={scr:"pick",cod:b.dataset.cod,msg:null}; FOCUS=`pscan-${u}`; break;
+      DB.ph[pk]={scr:"pick",cod,msg:null}; prepBipe(u); window.scrollTo(0,0); break; }
+    case "p-open": DB.ph[pk]={scr:"pick",cod:b.dataset.cod,msg:null}; prepBipe(u); break;
+    case "p-cfg": { const ph=DB.ph[pk]||(DB.ph[pk]={scr:"lista"}); ph.cfg=!ph.cfg; break; }
+    case "p-modo": { const m=b.dataset.m; if(DB.users[u]) DB.users[u].modo=m; const ph=DB.ph[pk]; if(ph) ph.cfg=false; DB.digitar=false; if(m!=="camera") camDesliga();
+      api("modo",{modo:m,login:u}).catch(x=>toast(x.message)); toast(`Bipagem: ${modoTxt(m)}.`); prepBipe(u); break; }
+    case "p-digitar": DB.digitar=!DB.digitar; FOCUS=`pscan-${u}`; break;
     case "p-back": camDesliga(); DB.ph[pk]={scr:"lista"}; break;
     case "p-mais": phScan(e,u,null); atualizaPick(); return;
     case "p-tudo": { const it=itens(e).find(i=>i.cod===b.dataset.cod); if(b.dataset.ok!=="1"){ b.dataset.ok="1"; b.textContent=`Confirmar: peguei as ${it.pecas} peças`; return; }
@@ -135,6 +150,7 @@ document.addEventListener("change",ev=>{ const t=ev.target;
   else if(t.id==="snd"){ DB.mute=!t.checked; save(); }
   else if(t.id==="qrsel"){ DB.qrU=t.value; render(); }
   else if(t.id==="fEtq"||t.id==="fPdf"){ lerArquivos(t); }
+  else if(t.id==="fUpEtq"||t.id==="fUpPdf"){ atualizarEnvio(t); }
   else if(t.id==="fde"||t.id==="fate"){ DB.f[t.id==="fde"?"de":"ate"]=t.value; DB.pg.envios=1; $("#elist").innerHTML=gEnviosList(); }
 });
 document.addEventListener("submit",ev=>{
@@ -144,8 +160,8 @@ document.addEventListener("submit",ev=>{
     if(mult===v.mult){ DB.edAn=null; render(); return; }
     acao(async()=>{ await api("vinc",{inv,cod:v.cod,mult}); DB.edAn=null; },`Anúncio ${inv}: ${mult===1?"vendido por unidade":"kit com "+mult+" peças"}.`); return; }
   if(f.id==="lblForm"){ ev.preventDefault(); lblScan(e,$("#lscan").value); FOCUS=DB.lbl?"lscan":null; render(); }
-  else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; phScan(e,u,f.querySelector("input").value); FOCUS=`pscan-${u}`; render(); }
-  else if(f.id==="uForm"){ ev.preventDefault(); const d={login:$("#uLogin").value.trim().toLowerCase(),nome:$("#uNome").value.trim(),role:$("#uRole").value,pin:$("#uPin").value.trim(),ativo:$("#uAtivo").checked};
+  else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; clearTimeout(COL_T); phScan(e,u,f.querySelector("input").value); FOCUS=f.dataset.modo==="camera"&&!DB.digitar?null:`pscan-${u}`; render(); }
+  else if(f.id==="uForm"){ ev.preventDefault(); const d={login:$("#uLogin").value.trim().toLowerCase(),nome:$("#uNome").value.trim(),role:$("#uRole").value,modo:$("#uModo").value,pin:$("#uPin").value.trim(),ativo:$("#uAtivo").checked};
     acao(async()=>{ await api("user",d); DB.uEdit=null; },"Usuário salvo."); }
 });
 document.addEventListener("focusin",ev=>{ if(ev.target.dataset?.vq!==undefined){ ev.target.select(); comboBusca(ev.target); } });

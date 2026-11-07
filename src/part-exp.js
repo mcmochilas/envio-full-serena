@@ -126,9 +126,13 @@ async function drawQR(e){
 }
 
 /* --- celular --- */
+const ENGR=`<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M10.3 3h3.4l.5 2.4 1.9.8 2-1.4 2.4 2.4-1.4 2 .8 1.9 2.4.5v3.4l-2.4.5-.8 1.9 1.4 2-2.4 2.4-2-1.4-1.9.8-.5 2.4h-3.4l-.5-2.4-1.9-.8-2 1.4-2.4-2.4 1.4-2-.8-1.9L3 13.7v-3.4l2.4-.5.8-1.9-1.4-2 2.4-2.4 2 1.4 1.9-.8z"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`;
 function phoneHtml(e,u,mode){
   const its=itens(e); const ph=mode==="sim"?(DB.ph[u]||(DB.ph[u]={scr:"lista"})):(DB.ph["_m"]||(DB.ph["_m"]={scr:"lista"}));
-  const top=`<div class="ptop"><img src="${LOGO.escuro}" alt="Serena"><div><b>Envio #${e.id}</b><small>${esc(nomeU(u))}</small></div></div>`;
+  const md=modoDe(u);
+  const top=`<div class="ptop"><img src="${LOGO.escuro}" alt="Serena"><div><b>Envio #${e.id}</b><small>${esc(nomeU(u))} · ${modoTxt(md)}</small></div><button class="pcfg" data-act="p-cfg" data-u="${u}" aria-label="Configurar bipagem" aria-expanded="${!!ph.cfg}" title="Configurar bipagem">${ENGR}</button></div>
+  ${ph.cfg?`<div class="pcfgbox"><b>Como você vai bipar?</b><span class="t2">Fica salvo para ${esc(nomeU(u))} em qualquer celular.</span>
+    ${MODOS.map(([k,t])=>`<button class="pmodo ${md===k?"on":""}" data-act="p-modo" data-u="${u}" data-m="${k}" aria-pressed="${md===k}"><b>${t}</b><span>${{camera:"A câmera abre sozinha ao pegar um item. Aponte para o código de barras.",bluetooth:"Leitor pareado ao celular. O campo fica pronto para o bipe e o teclado não abre.",coletor:"Coletor com leitor embutido. O campo fica sempre pronto e o bipe entra mesmo sem Enter."}[k]}</span></button>`).join("")}</div>`:""}`;
   const it=ph.scr==="pick"&&its.find(i=>i.cod===ph.cod&&i.s.status==="separando"&&i.s.resp===u);
   if(it){
     const p=prod(it.cod)||{nome:nomeCod(it.cod),ean:""}; const full=it.s.n>=it.pecas;
@@ -143,8 +147,10 @@ function phoneHtml(e,u,mode){
         <span class="t2">${compo(it)}. A montagem dos kits é feita na bancada.</span></div>
       ${ph.msg?`<div class="lmsg ${ph.msg.ok?"ok":"err"}">${esc(ph.msg.t)}</div>`:""}
       ${full?`<button class="btn btn-dark pbig" data-act="p-done" data-u="${u}" data-cod="${it.cod}">Coletei tudo · liberar etiquetas</button>`
-      :`<form class="pscan" data-u="${u}" autocomplete="off"><input class="inp" id="pscan-${u}" placeholder="Bipe a peça" inputmode="numeric" aria-label="Código da peça"><button class="btn btn-dark" type="submit">OK</button></form>
-        ${'BarcodeDetector' in window?`<button class="btn pbig" data-act="p-cam" data-u="${u}">Ler código com a câmera</button><div id="camwrap" hidden><video id="cam" playsinline muted></video><button class="btn btn-sm" data-act="p-camx">Fechar câmera</button></div>`:""}
+      :`${md==="camera"?(('BarcodeDetector' in window)?`<div id="camwrap" hidden><video id="cam" playsinline muted></video><button class="btn btn-sm" data-act="p-camx">Fechar câmera</button></div><button class="btn btn-dark pbig" id="camopen" data-act="p-cam" data-u="${u}">Abrir câmera para bipar</button>`
+          :`<div class="lmsg err">Este navegador não lê código pela câmera. Use o Chrome no Android ou troque o modo de bipagem na engrenagem.</div>`):""}
+        <form class="pscan" data-u="${u}" data-modo="${md}" autocomplete="off"><input class="inp" id="pscan-${u}" placeholder="${md==="camera"?"Ou digite o código":"Bipe a peça"}" inputmode="${md==="camera"||DB.digitar?"numeric":"none"}" aria-label="Código da peça"><button class="btn btn-dark" type="submit">OK</button></form>
+        ${md!=="camera"?`<div class="pmodohint"><span class="t2">${md==="bluetooth"?"Leitor Bluetooth: pode bipar direto.":"Coletor: pode bipar direto."}</span><button class="lnkbtn" data-act="p-digitar">${DB.digitar?"Esconder teclado":"Digitar código"}</button></div>`:""}
         <div class="acts"><button class="btn" style="flex:1" data-act="p-mais" data-u="${u}">Contar sem bipe (+1)</button><button class="btn" style="flex:1" data-act="p-tudo" data-u="${u}" data-cod="${it.cod}">Contei tudo (${it.pecas})</button></div>`}
       <button class="lnkbtn" data-act="p-solta" data-u="${u}" data-cod="${it.cod}">Devolver este item para a lista</button>
     </div>`;

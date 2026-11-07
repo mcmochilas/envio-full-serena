@@ -64,7 +64,7 @@ async function estado(me: Me, since?: string) {
       ids.length ? q(db.from("full_sep").select("envio,cod,status,resp,n,lab").in("envio", ids)) : [],
       invs.length ? q(db.from("full_vinc").select("inv,cod,mult").in("inv", invs)) : [],
       q(db.from("blocks").select("id,data")),
-      q(db.from("full_users").select("login,nome,role,ativo").eq("ativo", true)),
+      q(db.from("full_users").select("login,nome,role,ativo,modo").eq("ativo", true)),
     ]);
     const cods = [...new Set(vinc.map((v: any) => v.cod).filter(Boolean))];
     const [erp, prods] = cods.length ? await Promise.all([
@@ -84,7 +84,7 @@ async function estado(me: Me, since?: string) {
     q(db.from("full_vinc").select("inv,cod,mult")),
     q(db.from("full_erp").select("cod,nome,ean")),
     q(db.from("blocks").select("id,data")),
-    q(db.from("full_users").select("login,nome,role,ativo").order("nome")),
+    q(db.from("full_users").select("login,nome,role,ativo,modo").order("nome")),
   ]);
   const cods = erp.map((p: { cod: string }) => p.cod);
   const prods = cods.length ? await q(db.from("products").select("id,data").in("id", cods)) : [];
@@ -154,6 +154,35 @@ Deno.serve(async (req) => {
         await q(db.from("full_vinc").upsert({ inv: String(b.inv), cod: String(b.cod || ""), mult: Math.max(1, +b.mult || 1), updated_at: new Date().toISOString() }));
         return out({ ok: true });
       }
+      case "atualizar": {
+        must(gestor && !me.qrEnvio, "Só o gestor atualiza envios.");
+        const e = await q(db.from("full_envios").select("status").eq("id", b.id).maybeSingle());
+        must(e, "Envio não encontrado.", 404); must(e.status !== "concluido", "Envio já concluído.", 400);
+        const upd: Record<string, unknown> = { updated_at: new Date().toISOString() }; const oq: string[] = [];
+        if (Array.isArray(b.anuncios)) {
+          must(b.anuncios.length > 0, "Nenhuma etiqueta nos arquivos.", 400);
+          upd.anuncios = b.anuncios; oq.push(`etiquetas (${b.anuncios.length} anúncios)`);
+          const ex = await q(db.from("full_vinc").select("inv,cod"));
+          const temCod = new Set(ex.filter((v: { cod: string }) => v.cod).map((v: { inv: string }) => v.inv));
+          const novos = Object.entries(b.vinc || {}).filter(([inv]) => !temCod.has(inv)).map(([inv, v]: [string, any]) => ({ inv, cod: String(v.cod || ""), mult: Math.max(1, +v.mult || 1), updated_at: new Date().toISOString() }));
+          if (novos.length) await q(db.from("full_vinc").upsert(novos));
+        }
+        if (b.pre && typeof b.pre === "object") {
+          upd.pre = b.pre; upd.pvs = Array.isArray(b.pvs) ? b.pvs : []; oq.push(`pré-venda (${(upd.pvs as string[]).join(", ")})`);
+          const erp = Object.entries(b.erp || {}).map(([cod, p]: [string, any]) => ({ cod, nome: String(p.nome || cod), ean: String(p.ean || "") }));
+          if (erp.length) await q(db.from("full_erp").upsert(erp));
+        }
+        must(oq.length, "Nada para atualizar.", 400);
+        await q(db.from("full_envios").update(upd).eq("id", b.id));
+        await log(b.id, `${me.nome} atualizou ${oq.join(" e ")}`);
+        return out({ ok: true });
+      }
+      case "modo": {
+        must(["camera", "bluetooth", "coletor"].includes(b.modo), "Modo de bipagem inválido.", 400);
+        const alvo = gestor && !me.qrEnvio && b.login ? String(b.login) : me.login;
+        await q(db.from("full_users").update({ modo: b.modo }).eq("login", alvo));
+        return out({ ok: true });
+      }
       case "liberar": {
         must(gestor && !me.qrEnvio, "Só o gestor libera envios.");
         await q(db.from("full_envios").update({ status: "liberado", updated_at: new Date().toISOString() }).eq("id", b.id));
@@ -208,10 +237,10 @@ Deno.serve(async (req) => {
         if (b.pin !== undefined && b.pin !== "") must(/^\d{4}$/.test(String(b.pin)), "O PIN precisa ter 4 números.", 400);
         if (!ex) {
           must(/^\d{4}$/.test(String(b.pin || "")), "Informe um PIN de 4 números.", 400);
-          await q(db.from("full_users").insert({ login, nome: String(b.nome || login).slice(0, 60), role: b.role, pin_hash: "x", ativo: b.ativo !== false }));
+          await q(db.from("full_users").insert({ login, nome: String(b.nome || login).slice(0, 60), role: b.role, pin_hash: "x", ativo: b.ativo !== false, modo: ["camera", "bluetooth", "coletor"].includes(b.modo) ? b.modo : "camera" }));
         } else {
           must(!(login === me.login && (b.ativo === false || b.role !== "gestor")), "Você não pode desativar ou rebaixar o seu próprio usuário.", 400);
-          await q(db.from("full_users").update({ nome: String(b.nome || login).slice(0, 60), role: b.role, ativo: b.ativo !== false }).eq("login", login));
+          await q(db.from("full_users").update({ nome: String(b.nome || login).slice(0, 60), role: b.role, ativo: b.ativo !== false, ...(["camera", "bluetooth", "coletor"].includes(b.modo) ? { modo: b.modo } : {}) }).eq("login", login));
           if (b.ativo === false) await q(db.from("full_sessions").delete().eq("login", login));
         }
         if (b.pin) await q(db.rpc("full_set_pin", { p_login: login, p_pin: String(b.pin) }));

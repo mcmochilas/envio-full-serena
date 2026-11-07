@@ -304,6 +304,15 @@ tr:hover .pen,.pen:focus-visible{opacity:1}.pen:hover{color:var(--petrol);backgr
 .anEd .inp{width:84px;height:34px;padding:0 8px;font-size:15px;text-align:right;border-radius:8px}
 .ebtn{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-weight:700}
 .ebtn.ok{background:var(--petrol);border-color:var(--petrol);color:#fff}
+.upd{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;background:var(--bg)}
+.upd label.btn{cursor:pointer}
+.pcfg{margin-left:auto;border:1px solid rgba(255,255,255,.25);background:none;color:#F7F4EF;width:40px;height:40px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center}
+.pcfg[aria-expanded="true"]{background:rgba(255,255,255,.12)}
+.pcfgbox{background:var(--surface);border-bottom:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:8px}
+.pmodo{text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-height:56px}
+.pmodo b{font-size:15px}.pmodo span{font-size:13px;color:var(--muted)}
+.pmodo.on{border:2px solid var(--petrol);background:var(--ok-soft)}
+.pmodohint{display:flex;justify-content:space-between;align-items:center;gap:8px}
 </style>
 
 </head>
@@ -406,6 +415,10 @@ function logE(e,msg){ e.log.push({t:now(),msg}); if(e.log.length>200) e.log.shif
 let actx=null;
 function beep(ok){ if(DB.mute) return; try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); let t=actx.currentTime;
   (ok?[[1320,.07]]:[[220,.12],[180,.16]]).forEach(([f,d])=>{ const o=actx.createOscillator(),g=actx.createGain(); o.frequency.value=f; o.type=ok?"sine":"square"; g.gain.value=.08; o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t+d); t+=d+.04; }); }catch(x){} }
+
+const MODOS=[["camera","Câmera do celular"],["bluetooth","Leitor Bluetooth"],["coletor","Coletor de dados"]];
+const modoTxt=m=>(MODOS.find(x=>x[0]===m)||MODOS[0])[1];
+const modoDe=u=>(DB.users[u]&&DB.users[u].modo)||"camera";
 /* parsers compartilhados (navegador e node) */
 function zplDecode(s){ return s.replace(/(?:_[0-9A-F]{2})+/g, m=>{ const b=m.split("_").filter(Boolean).map(h=>parseInt(h,16)); try{ return new TextDecoder().decode(new Uint8Array(b)); }catch(e){ return m; } }); }
 function parseZPL(text){
@@ -423,7 +436,7 @@ function parsePrevendaLines(lines){
   const pv=((lines.join("\n").match(/Pré-venda\s*-\s*(\d+)/)||[])[1])||"";
   const itens=[];
   lines.forEach((l,i)=>{ const m=l.match(/(?:^|\s)(\d{5})\s+(.*?)\s*UN\s+([\d.]+),\d{3}/); if(!m) return;
-    let prev=""; for(let j=i-1;j>=Math.max(0,i-2);j--){ if(lines[j].trim()&&!/\d{13}/.test(lines[j])&&!/Itens da|Cód\.|Produto|Imagem/.test(lines[j])){ prev=lines[j].trim(); break; } }
+    let prev=""; for(let j=i-1;j>=Math.max(0,i-2);j--){ if(/(?:^|\s)\d{5}\s+.*?UN\s+[\d.]+,\d{3}/.test(lines[j])) break; if(lines[j].trim()&&!/\d{13}/.test(lines[j])&&!/Itens da|Cód\.|Produto|Imagem/.test(lines[j])){ prev=lines[j].replace(/Sem imagem/g,"").trim(); break; } }
     let ean=""; for(let j=i+1;j<=i+2&&j<lines.length;j++){ const e=lines[j].match(/(\d{13})/); if(e){ ean=e[1]; break; } }
     itens.push({cod:m[1],nome:(prev+" "+m[2].replace(/Sem imagem/,"")).replace(/\s+/g," ").trim(),qtd:parseInt(m[3].replace(/\./g,""),10),ean}); });
   return {pv,itens};
@@ -593,7 +606,7 @@ function delBtn(e){ const pend=DB.delPend&&DB.delPend.id===e.id&&Date.now()-DB.d
   return pend?`<button class="xdel on" data-act="delenv" data-id="${e.id}" title="Confirmar exclusão do envio #${e.id}.${aviso}">${XSVG}<span>Excluir?</span></button>`
     :`<button class="xdel" data-act="delenv" data-id="${e.id}" title="Excluir envio #${e.id}" aria-label="Excluir envio #${e.id}">${XSVG}</button>`; }
 const LAPIS=`<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M11.2 2.3a1.5 1.5 0 0 1 2.1 0l.4.4a1.5 1.5 0 0 1 0 2.1L6 12.5 2.5 13.5l1-3.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
-function anCel(e,a,mult){ const ed=DB.edAn; const txt=mult===1?"1 (unidade)":mult;
+function anCel(e,a,mult){ const ed=DB.edAn; const txt=`${mult} un`;
   if(ed&&ed.id===e.id&&ed.inv===a.inv)
     return `<form class="anEd" data-id="${e.id}" data-inv="${esc(a.inv)}"><input class="inp" id="anEdIn" type="number" min="1" max="999" step="1" value="${mult}" aria-label="Peças por kit do anúncio ${esc(a.inv)}"><button class="ebtn ok" type="submit" title="Salvar" aria-label="Salvar">✓</button><button class="ebtn" type="button" data-act="anEdX" title="Cancelar" aria-label="Cancelar">×</button></form>`;
   return `<span class="anv">${txt}<button class="pen" data-act="anEd" data-id="${e.id}" data-inv="${esc(a.inv)}" title="Editar peças por kit" aria-label="Editar peças por kit do anúncio ${esc(a.inv)}">${LAPIS}</button></span>`; }
@@ -643,6 +656,10 @@ function gDet(e){
   ${!pv.length&&c.div.length?`<div class="tbox" style="border:1px solid var(--line2)"><table class="t"><thead><tr><th>Diferença entre envio e pré-venda</th><th class="r">Envio</th><th class="r">Pré-venda</th><th class="r">Ação</th></tr></thead><tbody>${c.div.map(r=>`<tr><td><span class="mono">${r.cod}</span> · ${esc(nomeCod(r.cod))}</td><td class="r num">${r.x.pecas}</td><td class="r num">${r.p}</td><td class="r">${r.d<0&&e.status!=="concluido"?`<button class="btn btn-sm" data-act="addpre" data-id="${e.id}" data-cod="${r.cod}">${LUPA} Adicionar ${-r.d} à pré-venda</button>`:`<span class="muted">sobram ${r.d} na pré-venda</span>`}</td></tr>`).join("")}</tbody></table></div>`:""}
   ${Object.keys(e.manual||{}).length?`<div class="manbox"><div class="mhd">${LUPA} <b>Itens adicionados manualmente à pré-venda</b></div>
     ${Object.entries(e.manual).map(([cod,x])=>`<div class="mrow"><span><span class="mono">${cod}</span> · ${esc(nomeCod(cod))} · <b>+${x.qtd} peças</b><br><span class="muted">por ${esc(nomeU(x.por))} em ${esc(new Date(x.em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))} · lembre de lançar também no ERP</span></span>${e.status!=="concluido"?`<button class="btn btn-sm" data-act="rmpre" data-id="${e.id}" data-cod="${cod}">Remover</button>`:""}</div>`).join("")}</div>`:""}
+  ${e.status!=="concluido"?`<div class="upd"><span class="muted">Mudou alguma coisa no Mercado Livre ou no ERP?</span>
+    <label class="btn btn-sm">Subir pré-venda atualizada (PDF)<input type="file" id="fUpPdf" data-id="${e.id}" accept=".pdf,application/pdf" multiple hidden></label>
+    <label class="btn btn-sm">Subir etiquetas atualizadas (.txt)<input type="file" id="fUpEtq" data-id="${e.id}" accept=".txt,text/plain" multiple hidden></label>
+    ${e.status==="liberado"?`<span class="muted" style="flex-basis:100%">O que já foi separado e etiquetado continua valendo.</span>`:""}</div>`:""}
   <details class="oklist" ${DB.openAn===e.id?"open":""} data-an="${e.id}"><summary>Ver os ${e.anuncios.length} anúncios</summary>
   <div class="tbox" style="border:1px solid var(--line2);margin-top:8px"><table class="t"><thead><tr><th>Anúncio</th><th>Título no ML</th><th class="r">Etiquetas</th><th>Produto ERP</th><th class="r">Peças por kit</th><th class="r">Peças</th></tr></thead><tbody>
   ${(()=>{ const P=pager("an-"+e.id,e.anuncios.length,15); DB._p=P; return e.anuncios.slice(P.ini,P.fim).map(a=>{const v=V(a.inv);return `<tr class="${v.cod?"":"flag"}"><td class="mono">${esc(a.inv)}</td><td>${esc(a.titulo)}</td><td class="r num">${a.etiquetas}</td><td>${v.cod?`${v.cod} · ${esc(nomeCod(v.cod))}`:`<span class="tag tag-warn">sem vínculo</span>`}</td><td class="r num">${v.cod?anCel(e,a,v.mult):"—"}</td><td class="r num">${v.cod?a.etiquetas*v.mult:"—"}</td></tr>`;}).join(""); })()}
@@ -678,6 +695,24 @@ function comboBusca(inp){
   clearTimeout(BUSCA_T); if(q.length<2) return;
   BUSCA_T=setTimeout(async()=>{ try{ const r=await api("prod",{q:raw}); if(inp.value.trim()!==raw||document.activeElement!==inp) return; const m=new Map(loc.map(p=>[p.cod,p])); r.itens.forEach(p=>{ if(!m.has(p.cod)) m.set(p.cod,p); }); desenha([...m.values()].slice(0,10),false); }catch(e){ desenha(loc,false); } },300);
 }
+async function lerEtqFiles(files){ const map=new Map(); let id=null;
+  for(const f of files){ const m=f.name.match(/Envio-(\d+)/); if(m) id=m[1]; parseZPL(await f.text()).forEach(a=>{ const x=map.get(a.inv); if(x) x.etiquetas+=a.etiquetas; else map.set(a.inv,a); }); }
+  return {id,anuncios:[...map.values()]}; }
+async function lerPreFiles(files){ if(!window.pdfjsLib) throw new Error("o leitor de PDF não carregou. Verifique a conexão e tente de novo");
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const pre={}, pvs=[], erp={};
+  for(const f of files){ const r=parsePrevendaLines(await pdfLines(pdfjsLib,new Uint8Array(await f.arrayBuffer()))); if(!r.itens.length) throw new Error(`não reconheci itens em ${f.name}`);
+    const pv=r.pv||f.name; pvs.push(pv); r.itens.forEach(it=>{ (pre[it.cod]=pre[it.cod]||{})[pv]=((pre[it.cod]||{})[pv]||0)+it.qtd; erp[it.cod]={nome:it.nome,ean:it.ean}; }); }
+  return {pre,pvs,erp}; }
+async function atualizarEnvio(input){ const id=input.dataset.id, files=[...input.files]; input.value=""; if(!files.length) return;
+  try{ if(input.id==="fUpEtq"){ const r=await lerEtqFiles(files); if(!r.anuncios.length) return toast("Não encontrei etiquetas nesses arquivos.");
+      if(r.id&&r.id!==id) return toast(`Esses arquivos são do envio #${r.id}, não do #${id}.`);
+      const vinc={}; r.anuncios.forEach(a=>{ if(DB.vinc[a.inv]?.cod) return; const s=sugestaoVinc(a); vinc[a.inv]={cod:DB.erp[s.cod]?s.cod:"",mult:s.mult}; });
+      const antes=env(id), n0=antes?tot(antes):0, n1=r.anuncios.reduce((t,a)=>t+a.etiquetas,0);
+      acao(()=>api("atualizar",{id,anuncios:r.anuncios,vinc}),`Etiquetas atualizadas: ${r.anuncios.length} anúncios, ${n1} etiquetas (antes ${n0}).`); }
+    else { const r=await lerPreFiles(files); acao(()=>api("atualizar",{id,pre:r.pre,pvs:r.pvs,erp:r.erp}),`Pré-venda atualizada (${r.pvs.join(", ")}).`); } }
+  catch(x){ toast("Não consegui ler o arquivo: "+x.message); }
+}
 async function lerArquivos(input){
   const I=DB.imp||(DB.imp={anuncios:[],pre:{},pvs:[],vinc:{},erpNovos:{}});
   I.msg=null;
@@ -712,12 +747,13 @@ function gUsers(){
       <div class="fld"><label for="uLogin">Login</label><input class="inp" id="uLogin" value="${esc(ed.login||"")}" ${ed.novo?"":"readonly"} placeholder="ex.: ana" autocapitalize="none"></div>
       <div class="fld"><label for="uNome">Nome</label><input class="inp" id="uNome" value="${esc(ed.nome||"")}" placeholder="Nome que aparece no app"></div>
       <div class="fld"><label for="uRole">Perfil</label><select class="inp" id="uRole" style="height:46px"><option value="expedicao" ${ed.role!=="gestor"?"selected":""}>Expedição</option><option value="gestor" ${ed.role==="gestor"?"selected":""}>Gestor</option></select></div>
+      <div class="fld"><label for="uModo">Bipagem no celular</label><select class="inp" id="uModo" style="height:46px">${MODOS.map(([k,t])=>`<option value="${k}" ${(ed.modo||"camera")===k?"selected":""}>${t}</option>`).join("")}</select></div>
       <div class="fld"><label for="uPin">${ed.novo?"PIN (4 números)":"Novo PIN (deixe em branco para manter)"}</label><input class="inp" id="uPin" inputmode="numeric" maxlength="4" pattern="[0-9]*"></div>
     </div>
     <label class="hint" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="uAtivo" ${ed.ativo!==false?"checked":""}> Ativo</label>
     <div class="acts"><button class="btn btn-dark" type="submit">Salvar</button><button class="btn" type="button" data-act="uCancel">Cancelar</button></div></form>`:""}
-  <div class="tbox"><table class="t"><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Situação</th><th></th></tr></thead><tbody>
-  ${us.slice(P.ini,P.fim).map(u=>`<tr><td>${esc(u.nome)}</td><td class="mono">${esc(u.login)}</td><td>${u.role==="gestor"?"Gestor":"Expedição"}</td><td>${u.ativo!==false?`<span class="tag tag-ok">Ativo</span>`:`<span class="tag tag-off">Inativo</span>`}</td><td class="r"><button class="btn btn-sm" data-act="uEdit" data-u="${esc(u.login)}">Editar</button></td></tr>`).join("")}
+  <div class="tbox"><table class="t"><thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Bipagem</th><th>Situação</th><th></th></tr></thead><tbody>
+  ${us.slice(P.ini,P.fim).map(u=>`<tr><td>${esc(u.nome)}</td><td class="mono">${esc(u.login)}</td><td>${u.role==="gestor"?"Gestor":"Expedição"}</td><td>${modoTxt(u.modo)}</td><td>${u.ativo!==false?`<span class="tag tag-ok">Ativo</span>`:`<span class="tag tag-off">Inativo</span>`}</td><td class="r"><button class="btn btn-sm" data-act="uEdit" data-u="${esc(u.login)}">Editar</button></td></tr>`).join("")}
   </tbody></table></div>${P.html}`;
 }
 /* ===== EXPEDIÇÃO ===== */
@@ -848,9 +884,13 @@ async function drawQR(e){
 }
 
 /* --- celular --- */
+const ENGR=`<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M10.3 3h3.4l.5 2.4 1.9.8 2-1.4 2.4 2.4-1.4 2 .8 1.9 2.4.5v3.4l-2.4.5-.8 1.9 1.4 2-2.4 2.4-2-1.4-1.9.8-.5 2.4h-3.4l-.5-2.4-1.9-.8-2 1.4-2.4-2.4 1.4-2-.8-1.9L3 13.7v-3.4l2.4-.5.8-1.9-1.4-2 2.4-2.4 2 1.4 1.9-.8z"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`;
 function phoneHtml(e,u,mode){
   const its=itens(e); const ph=mode==="sim"?(DB.ph[u]||(DB.ph[u]={scr:"lista"})):(DB.ph["_m"]||(DB.ph["_m"]={scr:"lista"}));
-  const top=`<div class="ptop"><img src="${LOGO.escuro}" alt="Serena"><div><b>Envio #${e.id}</b><small>${esc(nomeU(u))}</small></div></div>`;
+  const md=modoDe(u);
+  const top=`<div class="ptop"><img src="${LOGO.escuro}" alt="Serena"><div><b>Envio #${e.id}</b><small>${esc(nomeU(u))} · ${modoTxt(md)}</small></div><button class="pcfg" data-act="p-cfg" data-u="${u}" aria-label="Configurar bipagem" aria-expanded="${!!ph.cfg}" title="Configurar bipagem">${ENGR}</button></div>
+  ${ph.cfg?`<div class="pcfgbox"><b>Como você vai bipar?</b><span class="t2">Fica salvo para ${esc(nomeU(u))} em qualquer celular.</span>
+    ${MODOS.map(([k,t])=>`<button class="pmodo ${md===k?"on":""}" data-act="p-modo" data-u="${u}" data-m="${k}" aria-pressed="${md===k}"><b>${t}</b><span>${{camera:"A câmera abre sozinha ao pegar um item. Aponte para o código de barras.",bluetooth:"Leitor pareado ao celular. O campo fica pronto para o bipe e o teclado não abre.",coletor:"Coletor com leitor embutido. O campo fica sempre pronto e o bipe entra mesmo sem Enter."}[k]}</span></button>`).join("")}</div>`:""}`;
   const it=ph.scr==="pick"&&its.find(i=>i.cod===ph.cod&&i.s.status==="separando"&&i.s.resp===u);
   if(it){
     const p=prod(it.cod)||{nome:nomeCod(it.cod),ean:""}; const full=it.s.n>=it.pecas;
@@ -865,8 +905,10 @@ function phoneHtml(e,u,mode){
         <span class="t2">${compo(it)}. A montagem dos kits é feita na bancada.</span></div>
       ${ph.msg?`<div class="lmsg ${ph.msg.ok?"ok":"err"}">${esc(ph.msg.t)}</div>`:""}
       ${full?`<button class="btn btn-dark pbig" data-act="p-done" data-u="${u}" data-cod="${it.cod}">Coletei tudo · liberar etiquetas</button>`
-      :`<form class="pscan" data-u="${u}" autocomplete="off"><input class="inp" id="pscan-${u}" placeholder="Bipe a peça" inputmode="numeric" aria-label="Código da peça"><button class="btn btn-dark" type="submit">OK</button></form>
-        ${'BarcodeDetector' in window?`<button class="btn pbig" data-act="p-cam" data-u="${u}">Ler código com a câmera</button><div id="camwrap" hidden><video id="cam" playsinline muted></video><button class="btn btn-sm" data-act="p-camx">Fechar câmera</button></div>`:""}
+      :`${md==="camera"?(('BarcodeDetector' in window)?`<div id="camwrap" hidden><video id="cam" playsinline muted></video><button class="btn btn-sm" data-act="p-camx">Fechar câmera</button></div><button class="btn btn-dark pbig" id="camopen" data-act="p-cam" data-u="${u}">Abrir câmera para bipar</button>`
+          :`<div class="lmsg err">Este navegador não lê código pela câmera. Use o Chrome no Android ou troque o modo de bipagem na engrenagem.</div>`):""}
+        <form class="pscan" data-u="${u}" data-modo="${md}" autocomplete="off"><input class="inp" id="pscan-${u}" placeholder="${md==="camera"?"Ou digite o código":"Bipe a peça"}" inputmode="${md==="camera"||DB.digitar?"numeric":"none"}" aria-label="Código da peça"><button class="btn btn-dark" type="submit">OK</button></form>
+        ${md!=="camera"?`<div class="pmodohint"><span class="t2">${md==="bluetooth"?"Leitor Bluetooth: pode bipar direto.":"Coletor: pode bipar direto."}</span><button class="lnkbtn" data-act="p-digitar">${DB.digitar?"Esconder teclado":"Digitar código"}</button></div>`:""}
         <div class="acts"><button class="btn" style="flex:1" data-act="p-mais" data-u="${u}">Contar sem bipe (+1)</button><button class="btn" style="flex:1" data-act="p-tudo" data-u="${u}" data-cod="${it.cod}">Contei tudo (${it.pecas})</button></div>`}
       <button class="lnkbtn" data-act="p-solta" data-u="${u}" data-cod="${it.cod}">Devolver este item para a lista</button>
     </div>`;
@@ -923,7 +965,7 @@ function lblScan(e,code){
 /* celular: #s-<token> (gerado no servidor, vale só para um envio e uma pessoa); sem login */
 function rota(){ const m=location.hash.match(/^#s-([\w-]+)/); DB.qr=m?m[1]:null; if(!m){ DB.mobile=null; DB.mobileU=null; } }
 rota();
-function render(){ render0(); if(FOCUS==="anEdIn"){ const f=document.getElementById("anEdIn"); if(f){ f.focus(); f.select(); } } const m=document.querySelector(".mdl");
+function render(){ render0(); try{ posRender(); }catch(x){} if(FOCUS==="anEdIn"){ const f=document.getElementById("anEdIn"); if(f){ f.focus(); f.select(); } } const m=document.querySelector(".mdl");
   if(DB.ajuda&&!DB.qr){ if(!m){ document.body.insertAdjacentHTML("beforeend",ajudaHtml()); document.body.style.overflow="hidden"; const x=document.querySelector(".mdl .hbtn"); if(x) x.focus(); } }
   else if(m){ m.remove(); document.body.style.overflow=""; const h=document.querySelector('[data-act="ajuda"]'); if(h) h.focus(); } }
 document.addEventListener("keydown",ev=>{ if(ev.key==="Escape"&&DB.edAn&&ev.target.id==="anEdIn"){ DB.edAn=null; render(); return; } if(!DB.ajuda) return; if(ev.key==="Escape"){ DB.ajuda=false; render(); }
@@ -971,11 +1013,22 @@ let CAM=null;
 async function camLiga(e,u){
   const w=$("#camwrap"), v=$("#cam"); if(!w||!v) return;
   try{ const det=new BarcodeDetector({formats:["ean_13","ean_8","code_128","upc_a"]}); const st=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
-    v.srcObject=st; await v.play(); w.hidden=false; CAM={st,ultimo:"",t:0};
+    v.srcObject=st; await v.play(); w.hidden=false; CAM={st,ultimo:"",t:0}; const o=$("#camopen"); if(o) o.hidden=true;
     const loop=async()=>{ if(!CAM) return; try{ const r=await det.detect(v); if(r[0]){ const c=r[0].rawValue, agora=Date.now(); if(c!==CAM.ultimo||agora-CAM.t>1200){ CAM.ultimo=c; CAM.t=agora; phScan(e,u,c); atualizaPick(); } } }catch(x){} if(CAM) setTimeout(loop,250); };
     loop(); }
   catch(x){ toast("Não foi possível abrir a câmera."); }
 }
+/* modo de bipagem: câmera abre sozinha; leitor/coletor deixam o campo sempre pronto */
+let AUTOCAM=null;
+function prepBipe(u){ if(modoDe(u)==="camera"){ FOCUS=null; AUTOCAM=u; } else { FOCUS=`pscan-${u}`; AUTOCAM=null; } }
+function posRender(){ const e=DB.mobile?env(DB.mobile):DB.cur&&env(DB.cur);
+  if(CAM){ const o=$("#camopen"); if(o) o.hidden=true; }
+  if(AUTOCAM&&e){ const u=AUTOCAM; AUTOCAM=null; if($("#camwrap")&&!CAM) camLiga(e,u); } }
+document.addEventListener("focusout",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo==="camera"||DB.digitar) return;
+  setTimeout(()=>{ const a=document.activeElement; if(a&&a!==document.body&&a.tagName!=="HTML") return; const n=document.getElementById(t.id); if(n) n.focus({preventScroll:true}); },180); });
+let COL_T=null;
+document.addEventListener("input",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo!=="coletor") return;
+  clearTimeout(COL_T); COL_T=setTimeout(()=>{ if(t.value.trim().length>=8&&document.body.contains(f)) f.requestSubmit(); },140); });
 function camDesliga(){ if(CAM){ CAM.st.getTracks().forEach(t=>t.stop()); CAM=null; } }
 function atualizaPick(){ const cam=CAM; if(cam){ const v=$("#cam"); const w=$("#camwrap"); render(); const v2=$("#cam"), w2=$("#camwrap"); if(v2&&w2){ v2.srcObject=cam.st; v2.play(); w2.hidden=false; } else camDesliga(); } else render(); }
 
@@ -1033,8 +1086,12 @@ document.addEventListener("click",ev=>{
     /* celular */
     case "p-pega": { const cod=b.dataset.cod; const s0=sepOf(e,cod); if(s0.status!=="livre"){ toast("Outra pessoa já pegou este item."); break; }
       otim(e,cod,"pega",{},`começou a separar ${nomeCod(cod)}`,s=>Object.assign(s,{status:"separando",resp:u,n:0}));
-      DB.ph[pk]={scr:"pick",cod,msg:null}; FOCUS=`pscan-${u}`; window.scrollTo(0,0); break; }
-    case "p-open": DB.ph[pk]={scr:"pick",cod:b.dataset.cod,msg:null}; FOCUS=`pscan-${u}`; break;
+      DB.ph[pk]={scr:"pick",cod,msg:null}; prepBipe(u); window.scrollTo(0,0); break; }
+    case "p-open": DB.ph[pk]={scr:"pick",cod:b.dataset.cod,msg:null}; prepBipe(u); break;
+    case "p-cfg": { const ph=DB.ph[pk]||(DB.ph[pk]={scr:"lista"}); ph.cfg=!ph.cfg; break; }
+    case "p-modo": { const m=b.dataset.m; if(DB.users[u]) DB.users[u].modo=m; const ph=DB.ph[pk]; if(ph) ph.cfg=false; DB.digitar=false; if(m!=="camera") camDesliga();
+      api("modo",{modo:m,login:u}).catch(x=>toast(x.message)); toast(`Bipagem: ${modoTxt(m)}.`); prepBipe(u); break; }
+    case "p-digitar": DB.digitar=!DB.digitar; FOCUS=`pscan-${u}`; break;
     case "p-back": camDesliga(); DB.ph[pk]={scr:"lista"}; break;
     case "p-mais": phScan(e,u,null); atualizaPick(); return;
     case "p-tudo": { const it=itens(e).find(i=>i.cod===b.dataset.cod); if(b.dataset.ok!=="1"){ b.dataset.ok="1"; b.textContent=`Confirmar: peguei as ${it.pecas} peças`; return; }
@@ -1056,6 +1113,7 @@ document.addEventListener("change",ev=>{ const t=ev.target;
   else if(t.id==="snd"){ DB.mute=!t.checked; save(); }
   else if(t.id==="qrsel"){ DB.qrU=t.value; render(); }
   else if(t.id==="fEtq"||t.id==="fPdf"){ lerArquivos(t); }
+  else if(t.id==="fUpEtq"||t.id==="fUpPdf"){ atualizarEnvio(t); }
   else if(t.id==="fde"||t.id==="fate"){ DB.f[t.id==="fde"?"de":"ate"]=t.value; DB.pg.envios=1; $("#elist").innerHTML=gEnviosList(); }
 });
 document.addEventListener("submit",ev=>{
@@ -1065,8 +1123,8 @@ document.addEventListener("submit",ev=>{
     if(mult===v.mult){ DB.edAn=null; render(); return; }
     acao(async()=>{ await api("vinc",{inv,cod:v.cod,mult}); DB.edAn=null; },`Anúncio ${inv}: ${mult===1?"vendido por unidade":"kit com "+mult+" peças"}.`); return; }
   if(f.id==="lblForm"){ ev.preventDefault(); lblScan(e,$("#lscan").value); FOCUS=DB.lbl?"lscan":null; render(); }
-  else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; phScan(e,u,f.querySelector("input").value); FOCUS=`pscan-${u}`; render(); }
-  else if(f.id==="uForm"){ ev.preventDefault(); const d={login:$("#uLogin").value.trim().toLowerCase(),nome:$("#uNome").value.trim(),role:$("#uRole").value,pin:$("#uPin").value.trim(),ativo:$("#uAtivo").checked};
+  else if(f.classList.contains("pscan")){ ev.preventDefault(); const u=f.dataset.u; clearTimeout(COL_T); phScan(e,u,f.querySelector("input").value); FOCUS=f.dataset.modo==="camera"&&!DB.digitar?null:`pscan-${u}`; render(); }
+  else if(f.id==="uForm"){ ev.preventDefault(); const d={login:$("#uLogin").value.trim().toLowerCase(),nome:$("#uNome").value.trim(),role:$("#uRole").value,modo:$("#uModo").value,pin:$("#uPin").value.trim(),ativo:$("#uAtivo").checked};
     acao(async()=>{ await api("user",d); DB.uEdit=null; },"Usuário salvo."); }
 });
 document.addEventListener("focusin",ev=>{ if(ev.target.dataset?.vq!==undefined){ ev.target.select(); comboBusca(ev.target); } });

@@ -158,3 +158,12 @@ tr:hover .pen,.pen:focus-visible{opacity:1}.pen:hover{color:var(--petrol);backgr
 .anEd .inp{width:84px;height:34px;padding:0 8px;font-size:15px;text-align:right;border-radius:8px}
 .ebtn{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-weight:700}
 .ebtn.ok{background:var(--petrol);border-color:var(--petrol);color:#fff}
+.upd{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 14px;border:1px dashed var(--line);border-radius:12px;background:var(--bg)}
+.upd label.btn{cursor:pointer}
+.pcfg{margin-left:auto;border:1px solid rgba(255,255,255,.25);background:none;color:#F7F4EF;width:40px;height:40px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center}
+.pcfg[aria-expanded="true"]{background:rgba(255,255,255,.12)}
+.pcfgbox{background:var(--surface);border-bottom:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:8px}
+.pmodo{text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-height:56px}
+.pmodo b{font-size:15px}.pmodo span{font-size:13px;color:var(--muted)}
+.pmodo.on{border:2px solid var(--petrol);background:var(--ok-soft)}
+.pmodohint{display:flex;justify-content:space-between;align-items:center;gap:8px}
