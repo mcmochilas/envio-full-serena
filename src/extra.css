@@ -193,3 +193,4 @@ td.neg{color:var(--err)}
 .sum small{display:block;margin-top:2px}
 .fbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}.fbar .busca2{flex:1;min-width:260px}
 .fbar .seg{flex:0 0 auto}
+.phd{display:flex;justify-content:space-between;align-items:center;gap:12px}.vtodos{display:inline-flex;gap:6px;align-items:center;font-size:13px}

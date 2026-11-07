@@ -167,6 +167,7 @@ document.addEventListener("change",ev=>{ const t=ev.target;
   else if(t.id==="snd"){ DB.mute=!t.checked; save(); }
   else if(t.id==="qrsel"){ DB.qrU=t.value; render(); }
   else if(t.id==="fCusto"){ lerCustos(t); }
+  else if(t.id==="verTodos"){ DB.verTodos=t.checked; render(); }
   else if(t.id==="mlOrd"){ DB.mlOrd=t.value; render(); }
   else if(t.id==="fEtq"||t.id==="fPdf"){ lerArquivos(t); }
   else if(t.id==="fUpEtq"||t.id==="fUpPdf"){ atualizarEnvio(t); }

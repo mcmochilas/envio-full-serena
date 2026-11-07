@@ -45,13 +45,17 @@ function xConf(e){
 /* --- bancada do computador --- */
 function xWork(e){
   const its=itens(e); const cnt=k=>its.filter(i=>i.s.status===k).length;
-  const prontos=its.filter(i=>i.s.status==="coletado"||i.s.status==="impresso");
+  /* cada pessoa vê os itens livres + os que ela mesma pegou; o gestor pode ver todos */
+  const eu=DB.me, todos=ROLE()==="gestor"&&DB.verTodos;
+  const meu=i=>i.s.status==="livre"||i.s.resp===eu||todos;
+  const vis=its.filter(meu);
+  const prontos=vis.filter(i=>(i.s.status==="coletado"||i.s.status==="impresso"));
   const fim=tudoEtiquetado(e);
   return `<div class="work"><div class="col">
     <div class="sumrow">
       <div class="sum"><b class="num">${cnt("livre")}</b><span>para buscar</span></div>
       <div class="sum"><b class="num">${its.reduce((t,i)=>t+kitsDe(i).n,0)}</b><span>kits no envio</span></div>
-      <div class="sum"><b class="num">${cnt("separando")}</b><span>sendo separados</span></div>
+      <div class="sum"><b class="num">${vis.filter(i=>i.s.status==="separando").length}</b><span>${todos?"sendo separados":"com você"}</span></div>
       <div class="sum hl"><b class="num">${prontos.length}</b><span>prontos p/ etiquetar</span></div>
       <div class="sum"><b class="num">${etqDone(e)}/${tot(e)}</b><span>etiquetas coladas</span></div>
     </div>
@@ -59,9 +63,9 @@ function xWork(e){
       <p class="hint" style="font-size:15px">${tot(e)} etiquetas coladas em ${conf(e).pecas} peças.${e.motivo?` Diferença registrada: “${esc(e.motivo)}”.`:""}</p>
       <div class="acts"><button class="btn btn-dark" data-act="concluir" style="height:52px">Concluir envio</button></div></div>`:""}
     ${DB.lbl&&its.find(i=>i.cod===DB.lbl)?xLabel(e,its.find(i=>i.cod===DB.lbl)):""}
-    <div class="panel"><h3>Produtos do envio</h3>
+    <div class="panel"><div class="phd"><h3>${todos?"Produtos do envio":"Seus produtos e itens livres"}</h3>${ROLE()==="gestor"?`<label class="muted vtodos"><input type="checkbox" id="verTodos" ${todos?"checked":""}> Ver itens de todos</label>`:""}</div>
       <div class="irow ihead" aria-hidden="true"><span>Produto</span><span class="c">Kits</span><span class="c">Unitário</span><span class="r">Situação</span></div>
-      ${its.map(it=>{ const k=kitsDe(it), un=unDe(it); return `<div class="irow ${DB.lbl===it.cod?"sel":""}">
+      ${(vis.length?"":`<div class="t2" style="padding:12px 0">Nenhum item livre ou com você.</div>`)}${vis.map(it=>{ const k=kitsDe(it), un=unDe(it); return `<div class="irow ${DB.lbl===it.cod?"sel":""}">
         <div><div class="t1">${esc(nomeCod(it.cod))}</div><div class="t2">${locOf(it.cod)?`<span class="locpill">${locOf(it.cod)}</span> `:`<span class="locpill off">Sem cadastro de local</span> `}cód. ${it.cod} · <b>${it.pecas} peças</b>${eanOf(it.cod)?"":` <span class="locpill warnp">Sem EAN no Picking</span>`}</div></div>
         <div class="icol" aria-label="Kits">${k.n?`<b class="num">${k.n} kit${k.n>1?"s":""}</b><span class="t2">${k.det}</span>`:`<span class="t2">—</span>`}</div>
         <div class="icol" aria-label="Unitário">${un?`<b class="num">${un} un</b>`:`<span class="t2">—</span>`}</div>
@@ -165,15 +169,14 @@ function phoneHtml(e,u,mode){
     </div>`;
   }
   const meus=its.filter(i=>i.s.status==="separando"&&i.s.resp===u), livres=its.filter(i=>i.s.status==="livre"),
-        outros=its.filter(i=>i.s.status==="separando"&&i.s.resp!==u), feitos=its.filter(i=>["coletado","impresso","etiquetado"].includes(i.s.status));
+        outros=its.filter(i=>i.s.status==="separando"&&i.s.resp!==u), feitos=its.filter(i=>["coletado","impresso","etiquetado"].includes(i.s.status)&&i.s.resp===u);
   livres.sort((a,b)=>locOrd(a.cod).localeCompare(locOrd(b.cod)));
   const card=(i,act)=>`<div class="pitem2"><div>${locOf(i.cod)?`<span class="locpill">${locOf(i.cod)}</span>`:`<span class="locpill off">Sem cadastro de local</span>`}<div class="t1">${esc(nomeCod(i.cod))}</div><div class="t2">cód. ${i.cod} · <b>${i.pecas} peças</b></div></div>${act}</div>`;
   return `${top}<div class="pbody">
     ${meus.length?`<span class="psec">Com você</span>${meus.map(i=>card(i,`<button class="btn btn-dark btn-sm" data-act="p-open" data-u="${u}" data-cod="${i.cod}">Continuar ${i.s.n}/${i.pecas}</button>`)).join("")}`:""}
     <span class="psec">Para buscar · na ordem do caminho</span>
     ${livres.length?livres.map(i=>card(i,`<button class="btn btn-dark btn-sm" data-act="p-pega" data-u="${u}" data-cod="${i.cod}">Vou separar</button>`)).join(""):`<span class="t2">Nada livre para buscar.</span>`}
-    ${outros.length?`<span class="psec">Com outras pessoas</span>${outros.map(i=>card(i,`<span class="tag tag-off">${esc(nomeU(i.s.resp))} · ${i.s.n}/${i.pecas}</span>`)).join("")}`:""}
-    ${feitos.length?`<span class="psec">Já coletados</span>${feitos.map(i=>card(i,stTag(i))).join("")}`:""}
+    ${feitos.length?`<span class="psec">Já coletados por você</span>${feitos.map(i=>card(i,stTag(i))).join("")}`:""}
   </div>`;
 }
 function renderPhoneFull(){
