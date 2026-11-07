@@ -25,6 +25,7 @@ html = f'''<!DOCTYPE html>
 <body>
 <div id="app"></div>
 <div id="scanbar" hidden><form id="scanf" autocomplete="off"><input id="scanIn" inputmode="none" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Código da peça" placeholder="Leitor pronto: bipe a peça"><button class="btn" type="submit">OK</button></form></div>
+<input type="file" id="fCusto" accept=".xlsx,.xls,.csv,text/csv" hidden>
 <div id="toast" hidden></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>

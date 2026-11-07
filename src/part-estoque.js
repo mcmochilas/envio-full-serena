@@ -53,7 +53,7 @@ function gEstoque(){
   const hdr=`<div class="hdr"><div><span class="eyebrow">Mercado Livre · Full</span><h1>Estoque no Full</h1>
       ${c.conectado?`<span class="muted">Conta ${esc(c.nick||"conectada")} · ${c.ultima_sync?`sincronizado ${new Date(c.ultima_sync).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"})}`:"ainda não sincronizado"}</span>`:""}</div>
     <div class="acts">${c.conectado?`<button class="btn" data-act="ml-sync" ${DB.mlSync?"disabled":""}>${DB.mlSync?"Sincronizando…":"Sincronizar agora"}</button>`:""}
-      <label class="btn">Subir custos (.xlsx/.csv)<input type="file" id="fCusto" accept=".xlsx,.xls,.csv,text/csv" hidden></label></div></div>`;
+      <button class="btn" data-act="ml-custos">Subir custos (.xlsx/.csv)</button></div></div>`;
   if(DB.mlErro) return hdr+`<div class="lmsg err">${esc(DB.mlErro)}</div><button class="btn" data-act="ml-recarregar">Tentar de novo</button>`;
   if(!c.conectado) return hdr+`<div class="panel mlcon"><h3>Conecte a conta do Mercado Livre</h3>
       <p class="muted">O painel lê pela API do Mercado Livre o estoque de cada anúncio no Full e as movimentações: entradas, devoluções, vendas e ajustes. É só leitura: nada é alterado na sua conta.</p>
@@ -81,7 +81,7 @@ function gEstoque(){
     const P=pager("mla",lst.length,15);
     corpo=`<div class="tbl"><table class="t"><thead><tr><th>Anúncio</th><th>Modelo</th><th class="r">Kit</th><th class="r">Disponível</th><th class="r">Indisp.</th><th class="r">Custo</th><th class="r">Vendas</th><th class="r">Cobertura</th></tr></thead><tbody>
       ${lst.slice(P.ini,P.fim).map(l=>`<tr class="mlrow ${DB.mlInv===l.inv?"open":""}" data-act="ml-hist" data-inv="${esc(l.inv)}" tabindex="0"><td><span class="mono">${esc(l.inv)}</span><div class="t2 mltit">${esc(l.titulo||"")}</div></td>
-          <td>${l.cod?`${l.cod} · ${esc(nomeCod(l.cod))}`:`<span class="tag tag-warn">sem vínculo</span>${l.sku?` <span class="t2">SKU ${esc(l.sku)}</span>`:""}`}</td>
+          <td>${l.cod?`${l.cod} · ${esc(nomeCod(l.cod))}`:`<div class="combo"><input class="inp" data-vq="${esc(l.inv)}" value="" placeholder="Vincular produto do ERP…" autocomplete="off" role="combobox" aria-expanded="false" aria-label="Produto ERP de ${esc(l.inv)}"><div class="clist" hidden></div></div>${l.sku?`<span class="t2">SKU no anúncio: ${esc(l.sku)}</span>`:""}`}</td>
           <td class="r num">${l.mult} un</td><td class="r num">${n0(l.disponivel)}</td><td class="r num">${l.indisponivel?`<span title="${esc((l.detalhe||[]).map(d=>`${d.status}: ${d.quantity}`).join(", "))}">${n0(l.indisponivel)}</span>`:"—"}</td>
           <td class="r num">${l.cu===null?`<span class="t2">sem custo</span>`:BRL(l.custoDisp)}</td><td class="r num">${n0(l.vend)}</td><td class="r"><span class="tag ${cobCls(l.cob)}">${cobTxt(l.cob)}</span></td></tr>
           ${DB.mlInv===l.inv?`<tr class="mlhist"><td colspan="8">${mlHistHtml(l)}</td></tr>`:""}`).join("")||`<tr><td colspan="8" class="muted">${m.ativos.length?"Nada encontrado.":"Nenhum anúncio com estoque no Full. Clique em Sincronizar agora."}</td></tr>`}
@@ -118,6 +118,7 @@ function mlHistHtml(l){ const h=DB.mlHist&&DB.mlHist.inv===l.inv?DB.mlHist:null;
 
 /* planilha de custos: SKU + custo (aceita .xlsx e .csv) */
 async function lerCustos(input){ const f=input.files[0]; input.value=""; if(!f) return;
+  toast("Lendo planilha…");
   try{ let rows;
     if(/\.csv$/i.test(f.name)){ const t=await f.text(); const sep=(t.split("\n")[0].match(/;/g)||[]).length>(t.split("\n")[0].match(/,/g)||[]).length?";":",";
       rows=t.split(/\r?\n/).filter(Boolean).map(l=>l.split(sep).map(x=>x.replace(/^"|"$/g,"").trim())); }
@@ -129,5 +130,5 @@ async function lerCustos(input){ const f=input.files[0]; input.value=""; if(!f) 
     const itens=rows.slice(1).map(r=>({cod:String(r[iS]??"").trim(),descricao:iD>=0?String(r[iD]??""):"",custo:num(r[iC])})).filter(x=>x.cod&&isFinite(x.custo));
     if(!itens.length) throw new Error("nenhuma linha com SKU e custo");
     const r=await api("custos",{itens}); toast(`Custos atualizados · ${n0(r.n)} SKUs`); await mlCarregar();
-  }catch(x){ toast("Planilha não reconhecida"); console.warn(x); }
+  }catch(x){ toast(`Planilha não reconhecida: ${x.message}`); console.warn(x); }
 }

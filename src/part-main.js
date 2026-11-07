@@ -106,6 +106,7 @@ document.addEventListener("click",ev=>{
   const pk0=ev.target.closest("[data-pick]");
   if(pk0){ const inv=pk0.dataset.inv; acao(()=>api("vinc",{inv,cod:pk0.dataset.pick,mult:V(inv).mult}),"Vínculo salvo."); return; }
   if(!ev.target.closest(".combo")) document.querySelectorAll(".clist").forEach(c=>c.hidden=true);
+  if(ev.target.closest(".combo")) return; // campo de vínculo dentro de linha clicável
   const b=ev.target.closest("[data-act]"); if(!b) return; const act=b.dataset.act;
   if(act!=="delenv") DB.delPend=null;
   if(act!=="volta") DB.voltaPend=null;
@@ -117,6 +118,7 @@ document.addEventListener("click",ev=>{
     case "tab": DB.tab=b.dataset.t; DB.uEdit=null; if(DB.tab==="estoque"&&DB.ml) mlCarregar(); break;
     case "ml-conectar": mlConectar(); return;
     case "ml-recarregar": DB.mlErro=null; DB.ml=null; break;
+    case "ml-custos": document.getElementById("fCusto").click(); return;
     case "ml-sync": DB.mlSync=true; render(); api("ml_sync",{}).then(r=>toast(`Sincronizado · ${r.anuncios} anúncios`)).catch(x=>toast(x.message)).finally(async()=>{ DB.mlSync=false; await mlCarregar(); }); return;
     case "ml-dias": if(b.dataset.d==="custom"){ DB.mlCustom=true; break; } DB.mlCustom=false; DB.mlDias=+b.dataset.d; DB.pg.mla=1; mlCarregar(); break;
     case "ml-visao": DB.mlModelo=b.dataset.v==="mod"; break;
