@@ -65,7 +65,11 @@ document.addEventListener("focusout",ev=>{ const t=ev.target; const f=t.closest&
   setTimeout(()=>{ const a=document.activeElement; if(a&&a!==document.body&&a.tagName!=="HTML") return; const n=document.getElementById(t.id); if(n) n.focus({preventScroll:true}); },180); });
 let COL_T=null;
 document.addEventListener("input",ev=>{ const t=ev.target; const f=t.closest&&t.closest("form.pscan"); if(!f||f.dataset.modo!=="coletor") return;
-  clearTimeout(COL_T); COL_T=setTimeout(()=>{ if(t.value.trim().length>=8&&document.body.contains(f)) f.requestSubmit(); },140); });
+  /* coletor: envia assim que o código bate com o EAN esperado (ou tem o tamanho dele); sem isso, só depois de uma pausa longa.
+     Coletores digitam em rajadas, então nunca envia pela metade. Se o coletor mandar Enter, o envio é imediato. */
+  clearTimeout(COL_T); const v=t.value.trim(); const ph=DB.ph[DB.mobile?"_m":f.dataset.u]; const esp=ph&&ph.cod?eanOf(ph.cod):"";
+  if(esp&&(v===esp||v.length>=esp.length)){ f.requestSubmit(); return; }
+  COL_T=setTimeout(()=>{ const w=t.value.trim(); if(w.length>=(esp?esp.length:8)&&document.body.contains(f)) f.requestSubmit(); },900); });
 function camDesliga(){ if(CAM){ CAM.st.getTracks().forEach(t=>t.stop()); CAM=null; } }
 function atualizaPick(){ const cam=CAM; if(cam){ const v=$("#cam"); const w=$("#camwrap"); render(); const v2=$("#cam"), w2=$("#camwrap"); if(v2&&w2){ v2.srcObject=cam.st; v2.play(); w2.hidden=false; } else camDesliga(); } else render(); }
 
