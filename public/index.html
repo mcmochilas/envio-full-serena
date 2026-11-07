@@ -152,7 +152,7 @@ pre.res{white-space:pre-wrap;background:var(--bg);border-radius:10px;padding:12p
 .sum b{font-family:var(--display);font-size:24px;line-height:1.1}
 .sum span{font-size:12px;color:var(--muted);font-weight:600}
 .sum.hl{background:var(--accent-soft)}.sum.hl b{color:var(--accent)}
-.irow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px 14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line2)}
+.irow{display:grid;grid-template-columns:minmax(0,1fr) 120px 90px 150px 230px;gap:6px 14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line2)}
 .irow:last-child{border-bottom:0}
 .irow.sel{background:var(--accent-soft);margin:0 -20px;padding:12px 20px}
 @media (max-width:640px){.irow{grid-template-columns:1fr}}
@@ -318,6 +318,11 @@ tr:hover .pen,.pen:focus-visible{opacity:1}.pen:hover{color:var(--petrol);backgr
 .xvolta:hover{color:var(--petrol);border-color:var(--petrol);background:var(--ok-soft)}
 .xvolta.on{background:var(--warn);border-color:var(--warn);color:#fff}
 #toast{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(92vw,520px)}
+.icol{display:flex;flex-direction:column;align-items:flex-end;text-align:right;line-height:1.25}
+.ihead{padding:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}.ihead .r{text-align:right}
+@media (max-width:640px){.ihead{display:none}.icol{align-items:flex-start;text-align:left}}
+.irow .ist{justify-content:flex-end;flex-wrap:wrap}
+@media (max-width:1100px){.irow{grid-template-columns:minmax(0,1fr) 110px 80px 170px}.irow .iact{grid-column:1/-1}}
 </style>
 
 </head>
@@ -813,6 +818,8 @@ function xWork(e){
   return `<div class="work"><div class="col">
     <div class="sumrow">
       <div class="sum"><b class="num">${cnt("livre")}</b><span>para buscar</span></div>
+      <div class="sum"><b class="num">${its.reduce((t,i)=>t+kitsDe(i).n,0)}</b><span>kits no envio</span></div>
+      <div class="sum"><b class="num">${its.reduce((t,i)=>t+unDe(i),0)}</b><span>peças unitárias</span></div>
       <div class="sum"><b class="num">${cnt("separando")}</b><span>sendo separados</span></div>
       <div class="sum hl"><b class="num">${prontos.length}</b><span>prontos p/ etiquetar</span></div>
       <div class="sum"><b class="num">${etqDone(e)}/${tot(e)}</b><span>etiquetas coladas</span></div>
@@ -822,13 +829,16 @@ function xWork(e){
       <div class="acts"><button class="btn btn-dark" data-act="concluir" style="height:52px">Concluir envio</button></div></div>`:""}
     ${DB.lbl&&its.find(i=>i.cod===DB.lbl)?xLabel(e,its.find(i=>i.cod===DB.lbl)):""}
     <div class="panel"><h3>Produtos do envio</h3>
-      ${its.map(it=>`<div class="irow ${DB.lbl===it.cod?"sel":""}">
-        <div><div class="t1">${esc(nomeCod(it.cod))}</div><div class="t2">${locOf(it.cod)?`<span class="locpill">${locOf(it.cod)}</span> `:`<span class="locpill off">Sem cadastro de local</span> `}cód. ${it.cod} · ${compo(it)} · <b>${it.pecas} peças</b></div></div>
-        <div class="ist">${stTag(it)}${it.s.status==="separando"?`<span class="t2 num">${it.s.n}/${it.pecas} coletadas</span>`:it.s.resp&&it.s.status!=="livre"?`<span class="t2">coletado por ${esc(nomeU(it.s.resp))}</span>`:""}</div>
+      <div class="irow ihead" aria-hidden="true"><span>Produto</span><span class="r">Kits</span><span class="r">Unitário</span><span></span><span></span></div>
+      ${its.map(it=>{ const k=kitsDe(it), un=unDe(it); return `<div class="irow ${DB.lbl===it.cod?"sel":""}">
+        <div><div class="t1">${esc(nomeCod(it.cod))}</div><div class="t2">${locOf(it.cod)?`<span class="locpill">${locOf(it.cod)}</span> `:`<span class="locpill off">Sem cadastro de local</span> `}cód. ${it.cod} · <b>${it.pecas} peças</b></div></div>
+        <div class="icol" aria-label="Kits">${k.n?`<b class="num">${k.n} kit${k.n>1?"s":""}</b><span class="t2">${k.det}</span>`:`<span class="t2">—</span>`}</div>
+        <div class="icol" aria-label="Unitário">${un?`<b class="num">${un} un</b>`:`<span class="t2">—</span>`}</div>
+        <div class="ist">${stTag(it)}${it.s.status==="livre"?`<span class="t2">aguardando coleta</span>`:it.s.status==="separando"?`<span class="t2 num">${it.s.n}/${it.pecas} coletadas</span>`:it.s.resp&&it.s.status!=="livre"?`<span class="t2">coletado por ${esc(nomeU(it.s.resp))}</span>`:""}</div>
         <div class="iact">${it.s.status==="coletado"?`<button class="btn btn-dark btn-sm" data-act="lbl" data-cod="${it.cod}">Gerar etiquetas</button>`
           :it.s.status==="impresso"?`<button class="btn btn-sm" data-act="lbl" data-cod="${it.cod}">Continuar · ${it.lab}/${it.etq}</button>`
-          :it.s.status==="etiquetado"?`<span class="okmark">✓ ${it.etq} etiquetas</span>`:`<span class="t2">aguardando coleta</span>`}${it.s.status!=="livre"&&e.status==="liberado"?voltaBtn(it):""}</div>
-      </div>`).join("")}
+          :it.s.status==="etiquetado"?`<span class="okmark">✓ ${it.etq} etiquetas</span>`:""}${it.s.status!=="livre"&&e.status==="liberado"?voltaBtn(it):""}</div>
+      </div>`; }).join("")}
     </div>
     <div class="panel"><h3>Atividade</h3><div class="log">${e.log.slice(-12).reverse().map(l=>`<div><span class="tm">${l.t}</span><span>${esc(l.msg)}</span></div>`).join("")||`<span class="muted">Nada ainda.</span>`}</div></div>
   </div>
@@ -853,6 +863,8 @@ function zplFor(it){
 const REFRESH=`<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16m0 4v-4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 function voltaBtn(it){ const pend=DB.voltaPend&&DB.voltaPend.cod===it.cod&&Date.now()-DB.voltaPend.t<6000;
   return `<button class="xvolta ${pend?"on":""}" data-act="volta" data-cod="${it.cod}" title="${pend?"Clique de novo para confirmar":"Recolocar na lista de separação"}" aria-label="Recolocar ${esc(nomeCod(it.cod))} na lista de separação">${REFRESH}${pend?"<span>Recolocar?</span>":""}</button>`; }
+function kitsDe(it){ const ks=it.anuncios.filter(a=>a.mult>1); return {n:ks.reduce((t,a)=>t+a.etiquetas,0),det:ks.map(a=>`${a.etiquetas} de ${a.mult} un`).join(" · ")}; }
+function unDe(it){ return it.anuncios.filter(a=>a.mult===1).reduce((t,a)=>t+a.etiquetas,0); }
 function xLabel(e,it){
   const s=it.s; const imp=s.status==="impresso"; const n=it.anuncios.length;
   const row=a=>{ const d=Math.min(s.lab?.[a.inv]||0,a.etiquetas);
