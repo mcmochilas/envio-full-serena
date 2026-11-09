@@ -149,7 +149,7 @@ async function mlSync(diasHist = 0) {
   const salva = (c: unknown) => q(db.from("full_ml_auth").update({ ops_cursor: c, ultima_sync: new Date().toISOString(), msg: null }).eq("id", 1));
   let nOps = 0;
   for (let w = cur.w; w < nJan; w++) {
-    const w1 = fim - w * JAN, w0 = Math.max(ini, w1 - JAN);
+    const w1 = fim - w * JAN, w0 = Math.min(Math.max(ini, w1 - JAN), w1 - D); // o ML exige date_from < date_to (em dias)
     for (let i = w === cur.w ? cur.i : 0; i < invs.length; i += LOTE) {
       if (Date.now() - t0 > 100000) { await salva({ ...cur, w, i }); return { anuncios: linhas.length, ops: nOps, parcial: true, ate: dia(w1) }; }
       let sc = "";
