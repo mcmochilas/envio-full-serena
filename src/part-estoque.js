@@ -55,8 +55,6 @@ function cobCel(l){
   const K=mlTeto(), dias=(DB.ml||{}).dias||30;
   const lin=(a,b,cls="")=>`<tr class="${cls}"><th>${a}</th><td>${b}</td></tr>`;
   const tab=`<table class="ctt"><tbody>
-    ${lin("Disponível no Full",`${n0(l.disponivel)} un`)}
-    ${lin(`Vendas em ${dias} dias`,`${n0(l.nVendas)} venda${l.nVendas===1?"":"s"} · ${n0(l.vend)} un`)}
     ${l.nVendas?lin("Venda típica (mediana 180 dias)",`${n0(l.tip)} un`):""}
     ${l.nVendas&&K?lin(`Teto de pico (${K}×)`,`${n0(l.teto)} un`):""}
     ${l.picos.length?lin("Vendas acima do teto",l.picos.map(x=>`${n0(x)} un`).join(" · "),"ctpk"):""}
