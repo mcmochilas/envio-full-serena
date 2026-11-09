@@ -3,10 +3,10 @@
 function rota(){ const m=location.hash.match(/^#s-([\w-]+)/); DB.qr=m?m[1]:null; if(!m){ DB.mobile=null; DB.mobileU=null; } }
 rota();
 function render(){ render0(); try{ posRender(); }catch(x){} if(FOCUS==="anEdIn"){ const f=document.getElementById("anEdIn"); if(f){ f.focus(); f.select(); } } const m=document.querySelector(".mdl");
-  if(DB.ajuda&&!DB.qr){ if(!m){ document.body.insertAdjacentHTML("beforeend",ajudaHtml()); document.body.style.overflow="hidden"; const x=document.querySelector(".mdl .hbtn"); if(x) x.focus(); } }
-  else if(m){ m.remove(); document.body.style.overflow=""; const h=document.querySelector('[data-act="ajuda"]'); if(h) h.focus(); } }
+  if(DB.ajuda&&!DB.qr){ if(!m){ document.body.insertAdjacentHTML("beforeend",DB.ajuda==="cob"?cobAjudaHtml():ajudaHtml()); document.body.style.overflow="hidden"; const x=document.querySelector(".mdl .hbtn"); if(x) x.focus(); } }
+  else if(m){ m.remove(); document.body.style.overflow=""; const h=document.querySelector('[data-act="ajuda"],[data-act="ajuda-cob"]'); if(h) h.focus(); } }
 document.addEventListener("keydown",ev=>{ if(ev.key==="Escape"&&DB.edAn&&ev.target.id==="anEdIn"){ DB.edAn=null; render(); return; } if(!DB.ajuda) return; if(ev.key==="Escape"){ DB.ajuda=false; render(); }
-  else if(ev.key==="ArrowRight"||ev.key==="ArrowLeft"){ DB.ajI=Math.max(0,Math.min(AJUDA.length-1,(DB.ajI||0)+(ev.key==="ArrowRight"?1:-1))); ajudaUpd(); } });
+  else if(DB.ajuda===true&&(ev.key==="ArrowRight"||ev.key==="ArrowLeft")){ DB.ajI=Math.max(0,Math.min(AJUDA.length-1,(DB.ajI||0)+(ev.key==="ArrowRight"?1:-1))); ajudaUpd(); } });
 function render0(){
   if(DB.qr){ if(!DB.carregado) return renderCarregando(); return renderPhoneFull(); }
   if(!PREF.token||!DB.me) return renderLogin();
@@ -151,6 +151,7 @@ document.addEventListener("click",ev=>{
     case "qrCopiar": qrLink(e.id,qrU()).then(l=>navigator.clipboard.writeText(l)).then(()=>toast("Link copiado."),x=>toast(x?.message||"Não deu para copiar.")); return;
     case "lbl": DB.lbl=b.dataset.cod; DB.lmsg=null; if(sepOf(e,DB.lbl).status==="impresso") FOCUS="lscan"; break;
     case "ajuda": DB.ajuda=true; DB.ajI=0; break;
+    case "ajuda-cob": DB.ajuda="cob"; break;
     case "aj-ir": DB.ajI=Math.max(0,Math.min(AJUDA.length-1,+b.dataset.i)); ajudaUpd(); return;
     case "ajudax": if(ev.target.closest("[data-stop]")&&!ev.target.closest('button[data-act="ajudax"]')) return; DB.ajuda=false; break;
     case "anEd": DB.edAn={id:b.dataset.id,inv:b.dataset.inv}; FOCUS="anEdIn"; break;

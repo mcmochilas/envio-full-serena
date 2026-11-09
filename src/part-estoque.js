@@ -82,13 +82,13 @@ function gEstoque(){
   if(porModelo){
     const g=new Map(); lst.forEach(l=>{ const k=l.cod||"—"; const x=g.get(k)||{cod:l.cod,an:[],pecas:0,custo:0,vend:0}; x.an.push(l); x.pecas+=l.pecas; x.custo+=l.custoDisp||0; x.vend+=l.vendTip*l.mult; g.set(k,x); });
     const gs=[...g.values()].sort((a,b)=>b.custo-a.custo); const P=pager("mlm",gs.length,15);
-    corpo=`<div class="tbl"><table class="t"><thead><tr><th>Modelo</th><th class="r">Anúncios</th><th class="r">Peças disponíveis</th><th class="r">Custo</th><th class="r">Peças vendidas</th><th class="r">Cobertura</th></tr></thead><tbody>
+    corpo=`<div class="tbl"><table class="t"><thead><tr><th>Modelo</th><th class="r">Anúncios</th><th class="r">Peças disponíveis</th><th class="r">Custo</th><th class="r">Peças vendidas</th><th class="r">Cobertura <button class="hbtn hbtn-s" data-act="ajuda-cob" title="Como a cobertura é calculada" aria-label="Como a cobertura é calculada">!</button></th></tr></thead><tbody>
       ${gs.slice(P.ini,P.fim).map(x=>{ const md=x.vend/dias, cob=md>0?x.pecas/md:null; return `<tr><td>${x.cod?`<b>${x.cod}</b> · ${esc(nomeCod(x.cod))}`:`<span class="tag tag-warn">sem vínculo</span>`}<div class="t2">${x.an.map(a=>`${esc(a.inv)} (${a.mult} un)`).join(" · ")}</div></td>
         <td class="r num">${x.an.length}</td><td class="r num">${n0(x.pecas)}</td><td class="r num">${x.custo?BRL(x.custo):"—"}</td><td class="r num">${n0(x.vend)}</td><td class="r"><span class="tag ${cobCls(cob)}">${cobTxt(cob)}</span></td></tr>`; }).join("")||`<tr><td colspan="6" class="muted">Nada encontrado.</td></tr>`}
       </tbody></table></div>${P.html}`;
   } else {
     const P=pager("mla",lst.length,15);
-    corpo=`<div class="tbl"><table class="t"><thead><tr><th>Anúncio</th><th>Modelo</th><th class="r">Kit</th><th class="r">Disponível</th><th class="r">Indisp.</th><th class="r">Custo</th><th class="r">Vendas</th><th class="r">Cobertura</th></tr></thead><tbody>
+    corpo=`<div class="tbl"><table class="t"><thead><tr><th>Anúncio</th><th>Modelo</th><th class="r">Kit</th><th class="r">Disponível</th><th class="r">Indisp.</th><th class="r">Custo</th><th class="r">Vendas</th><th class="r">Cobertura <button class="hbtn hbtn-s" data-act="ajuda-cob" title="Como a cobertura é calculada" aria-label="Como a cobertura é calculada">!</button></th></tr></thead><tbody>
       ${lst.slice(P.ini,P.fim).map(l=>`<tr class="mlrow ${DB.mlInv===l.inv?"open":""}" data-act="ml-hist" data-inv="${esc(l.inv)}" tabindex="0"><td><span class="mono">${esc(l.inv)}</span><div class="t2 mltit">${esc(l.titulo||"")}</div></td>
           <td>${l.cod?`${l.cod} · ${esc(nomeCod(l.cod))}`:`<div class="combo"><input class="inp" data-vq="${esc(l.inv)}" value="" placeholder="Vincular produto do ERP…" autocomplete="off" role="combobox" aria-expanded="false" aria-label="Produto ERP de ${esc(l.inv)}"><div class="clist" hidden></div></div>${l.sku?`<span class="t2">SKU no anúncio: ${esc(l.sku)}</span>`:""}`}</td>
           <td class="r num">${l.mult} un</td><td class="r num">${n0(l.disponivel)}</td><td class="r num">${l.indisponivel?`<span title="${esc((l.detalhe||[]).map(d=>`${d.status}: ${d.quantity}`).join(", "))}">${n0(l.indisponivel)}</span>`:"—"}</td>
@@ -153,3 +153,21 @@ async function lerCustos(input){ const f=input.files[0]; input.value=""; if(!f) 
     const r=await api("custos",{itens}); toast(`Custos atualizados · ${n0(r.n)} SKUs`); await mlCarregar();
   }catch(x){ toast(`Planilha não reconhecida: ${x.message}`); console.warn(x); }
 }
+
+/* popup: como a cobertura é calculada */
+function cobAjudaHtml(){ const c=DB.ml||{}, dias=c.dias||30, K=mlTeto();
+  return `<div class="mdl" data-act="ajudax"><div class="mdlc cobaj" role="dialog" aria-modal="true" aria-labelledby="cobT" data-stop="1">
+  <div class="mdlh"><div><span class="eyebrow">Ajuda</span><h3 id="cobT">Como a cobertura é calculada</h3></div><button class="hbtn" data-act="ajudax" aria-label="Fechar">×</button></div>
+  <p>A cobertura diz <b>quantos dias o estoque disponível no Full dura</b> no ritmo de venda atual.</p>
+  <div class="cobf">Cobertura = disponível no Full ÷ vendas por dia</div>
+  <ol class="cobl">
+    <li><b>Vendas por dia</b>: soma das vendas do anúncio nos últimos <b>${dias} dias</b> (período escolhido no topo), menos as vendas canceladas, dividida por ${dias}.</li>
+    <li><b>Corte de picos</b>: para cada anúncio, o sistema calcula o <b>tamanho normal de uma venda</b> (a mediana das vendas dos últimos 180 dias). ${K?`Uma venda maior que <b>${K}× esse normal</b> conta só até esse teto, para um pedido grande isolado não derrubar a cobertura.`:`O corte está <b>desligado</b>: todas as vendas contam pelo valor cheio.`} Ajuste em “Pico: venda acima de…”.</li>
+    <li><b>⚡ Pico</b>: o anúncio teve venda acima do teto. Passe o mouse na cobertura para ver as vendas cortadas e quanto daria sem o corte.</li>
+    <li><b>Esporádica</b>: só 1 ou 2 vendas no período. Pouca venda não dá uma projeção confiável, então o número de dias não é mostrado e o anúncio fica fora da cobertura média.</li>
+    <li><b>Sem venda</b>: nenhuma venda no período.</li>
+  </ol>
+  <div class="cobex"><b>Exemplo</b> (teto ${K||3}×): normal de 2 peças por venda, vendas de 2, 1, 2 e 20 em 30 dias, 15 disponíveis.<br>
+    Sem corte: 25 ÷ 30 = 0,83 por dia → <b>18 dias</b>. Com corte: a venda de 20 conta como ${2*(K||3)} → ${5+2*(K||3)} ÷ 30 = ${((5+2*(K||3))/30).toFixed(2).replace(".",",")} por dia → <b>${Math.round(15/((5+2*(K||3))/30))} dias</b> ⚡.</div>
+  <p class="hint"><b>Cores:</b> laranja abaixo de 15 dias (repor), verde entre 15 e 90 dias, vermelho acima de 90 dias (estoque parado). A <b>cobertura média</b> do topo pondera cada anúncio pelo custo do estoque disponível.</p>
+  </div></div>`; }
