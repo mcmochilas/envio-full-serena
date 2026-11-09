@@ -207,3 +207,15 @@ body.comscan #toast{bottom:96px}
 .cobf{margin:10px 0 14px;padding:10px 14px;border-radius:10px;background:var(--accent-soft);font:600 15px/1.4 var(--display);text-align:center}
 .cobl{padding-left:20px;display:grid;gap:8px;margin:0 0 14px}
 .cobex{padding:12px 14px;border:1px dashed var(--line);border-radius:10px;font-size:13.5px;line-height:1.55;margin-bottom:12px}
+
+.ctw{position:relative;display:inline-block;outline:none}
+.ctip{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:40;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 28px rgba(15,58,78,.18);padding:8px 10px;text-align:left;white-space:nowrap;cursor:default}
+.ctw:hover .ctip,.ctw:focus .ctip,.ctw:focus-within .ctip{display:block}
+.ctt{border-collapse:collapse;font-size:12.5px;min-width:280px}
+.ctt th,.ctt td{padding:5px 8px;border-bottom:1px solid var(--line);font-weight:400}
+.ctt th{color:var(--t2,#5b6b74);text-align:left}
+.ctt td{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}
+.ctt tr:last-child th,.ctt tr:last-child td{border-bottom:0}
+.ctt .ctpk td{color:var(--warn)}
+.ctt .cttot th,.ctt .cttot td{background:var(--accent-soft)}
+.ctnota{margin-top:6px;font-size:12px;color:var(--t2,#5b6b74);white-space:normal;max-width:300px}

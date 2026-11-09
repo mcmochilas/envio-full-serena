@@ -51,9 +51,21 @@ function mlCalc(){ const c=DB.ml||{}, dias=c.dias||30; const K=mlTeto(), VD=c.ve
 
 const cobTxt=c=>c===null?"sem venda":c>=999?"999+ dias":`${Math.round(c)} dia${Math.round(c)===1?"":"s"}`;
 function cobCel(l){
-  const pk=l.picos.length?`${l.picos.length} venda${l.picos.length>1?"s":""} acima do teto (${l.picos.join(", ")} un; teto ${l.teto} un, típico ${l.tip} un). Com os picos a cobertura seria ${cobTxt(l.cobBruta)}.`:"";
-  const tit=[pk,l.espor?`Venda esporádica: só ${l.nVendas} venda${l.nVendas>1?"s":""} no período.`:""].filter(Boolean).join(" ");
-  return `<span class="tag ${l.espor?"tag-off":cobCls(l.cob)}" ${tit?`title="${esc(tit)}"`:""}>${l.espor?"esporádica":cobTxt(l.cob)}${l.picos.length?' <b aria-label="teve pico">⚡</b>':""}</span>`; }
+  const dec=v=>v.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const K=mlTeto(), dias=(DB.ml||{}).dias||30;
+  const lin=(a,b,cls="")=>`<tr class="${cls}"><th>${a}</th><td>${b}</td></tr>`;
+  const tab=`<table class="ctt"><tbody>
+    ${lin("Disponível no Full",`${n0(l.disponivel)} un`)}
+    ${lin(`Vendas em ${dias} dias`,`${n0(l.nVendas)} venda${l.nVendas===1?"":"s"} · ${n0(l.vend)} un`)}
+    ${l.nVendas?lin("Venda típica (mediana 180 dias)",`${n0(l.tip)} un`):""}
+    ${l.nVendas&&K?lin(`Teto de pico (${K}×)`,`${n0(l.teto)} un`):""}
+    ${l.picos.length?lin("Vendas acima do teto",l.picos.map(x=>`${n0(x)} un`).join(" · "),"ctpk"):""}
+    ${l.nVendas?lin("Vendas por dia (com corte)",dec(l.md)):""}
+    ${l.picos.length?lin("Vendas por dia (sem corte)",dec(l.vend/dias)):""}
+    ${lin("Cobertura",`<b>${cobTxt(l.cob)}</b>`,"cttot")}
+    ${l.picos.length?lin("Cobertura sem corte",cobTxt(l.cobBruta)):""}
+  </tbody></table>${l.espor?`<div class="ctnota">Venda esporádica: só ${l.nVendas} venda${l.nVendas>1?"s":""} no período, projeção pouco confiável.</div>`:""}`;
+  return `<span class="ctw" tabindex="0"><span class="tag ${l.espor?"tag-off":cobCls(l.cob)}">${l.espor?"esporádica":cobTxt(l.cob)}${l.picos.length?' <b aria-label="teve pico">⚡</b>':""}</span><span class="ctip" role="tooltip">${tab}</span></span>`; }
 const cobCls=c=>c===null?"tag-off":c<15?"tag-warn":c>90?"tag-err":"tag-ok";
 
 function gEstoque(){
