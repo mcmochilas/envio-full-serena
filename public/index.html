@@ -823,17 +823,22 @@ async function mlPendente(){ const u=new URL(location.href), code=u.searchParams
   try{ await api("ml_callback",{code}); toast("Mercado Livre conectado"); }catch(x){ toast(x.message); }
   DB.mlSync=false; await mlCarregar(); }
 
-function mlCalc(){ const c=DB.ml||{}, dias=c.dias||30; const custo={}; (c.custos||[]).forEach(x=>custo[x.cod]=+x.custo);
+/* teto de pico: uma venda acima de N× o tamanho típico do anúncio (mediana dos últimos 180 dias) conta só até o teto na cobertura */
+const mlTeto=()=>{ if(DB.mlTeto===undefined){ try{ DB.mlTeto=+(localStorage.getItem("envio-full-teto")??3); }catch(e){ DB.mlTeto=3; } } return DB.mlTeto; };
+function mlCalc(){ const c=DB.ml||{}, dias=c.dias||30; const K=mlTeto(), VD=c.vendas||{}; const custo={}; (c.custos||[]).forEach(x=>custo[x.cod]=+x.custo);
   const R={}; (c.resumo||[]).forEach(r=>{ (R[r.inv]=R[r.inv]||{})[r.tipo]={d:+r.disp||0,i:+r.indisp||0,n:+r.n||0}; });
   const q=(inv,t,campo)=>{ const x=(R[inv]||{})[t]; if(!x) return 0; const v=Math.abs(campo==="t"?x.d+x.i:x.d); return v||x.n; };
   const linhas=(c.estoque||[]).map(e=>{ const v=V(e.inv), mult=v.mult||1, cod=v.cod||"", cu=cod&&custo[cod]!==undefined?custo[cod]:null;
-    const vend=Math.max(0,q(e.inv,"sale_confirmation","d")-q(e.inv,"sale_cancelation","d"));
+    const canc=q(e.inv,"sale_cancelation","d"), vend=Math.max(0,q(e.inv,"sale_confirmation","d")-canc);
     const ent=q(e.inv,"inbound_reception","t"), dev=q(e.inv,"sale_return","t")+q(e.inv,"sale_delivery_cancelation","t");
-    const md=vend/dias, cob=md>0?e.disponivel/md:null;
-    return {...e,cod,mult,cu,vend,ent,dev,md,cob,custoDisp:cu!==null?e.disponivel*mult*cu:null,custoTot:cu!==null?e.total*mult*cu:null,pecas:e.disponivel*mult}; });
+    const vd=VD[e.inv]||{q:[]}, qs=(vd.q||[]).map(Number), tip=Math.max(1,+vd.med||1), teto=K>0?Math.max(1,Math.round(K*tip)):Infinity;
+    const picos=qs.filter(x=>x>teto), vendTip=Math.max(0,qs.reduce((t,x)=>t+Math.min(x,teto),0)-canc);
+    const md=vendTip/dias, cob=md>0?e.disponivel/md:null, mdBruta=vend/dias, cobBruta=mdBruta>0?e.disponivel/mdBruta:null;
+    const espor=qs.length>0&&qs.length<=2;
+    return {...e,cod,mult,cu,vend,vendTip,nVendas:qs.length,picos,teto,tip,espor,cobBruta,ent,dev,md,cob,custoDisp:cu!==null?e.disponivel*mult*cu:null,custoTot:cu!==null?e.total*mult*cu:null,pecas:e.disponivel*mult}; });
   const ativos=linhas.filter(l=>l.total>0);
   const modelos=new Set(ativos.filter(l=>l.cod).map(l=>l.cod));
-  const comCob=ativos.filter(l=>l.cob!==null&&l.custoDisp);
+  const comCob=ativos.filter(l=>l.cob!==null&&l.custoDisp&&!l.espor);
   const pes=comCob.reduce((t,l)=>t+l.custoDisp,0);
   const cobMedia=comCob.length?(pes>0?comCob.reduce((t,l)=>t+l.cob*l.custoDisp,0)/pes:comCob.reduce((t,l)=>t+l.cob,0)/comCob.length):null;
   return {linhas,ativos,dias,modelos:modelos.size,cobMedia,
@@ -843,6 +848,10 @@ function mlCalc(){ const c=DB.ml||{}, dias=c.dias||30; const custo={}; (c.custos
     ent:linhas.reduce((t,l)=>t+l.ent,0), dev:linhas.reduce((t,l)=>t+l.dev,0), devPecas:linhas.reduce((t,l)=>t+l.dev*l.mult,0), vend:linhas.reduce((t,l)=>t+l.vend,0)}; }
 
 const cobTxt=c=>c===null?"sem venda":c>=999?"999+ dias":`${Math.round(c)} dia${Math.round(c)===1?"":"s"}`;
+function cobCel(l){
+  const pk=l.picos.length?`${l.picos.length} venda${l.picos.length>1?"s":""} acima do teto (${l.picos.join(", ")} un; teto ${l.teto} un, típico ${l.tip} un). Com os picos a cobertura seria ${cobTxt(l.cobBruta)}.`:"";
+  const tit=[pk,l.espor?`Venda esporádica: só ${l.nVendas} venda${l.nVendas>1?"s":""} no período.`:""].filter(Boolean).join(" ");
+  return `<span class="tag ${l.espor?"tag-off":cobCls(l.cob)}" ${tit?`title="${esc(tit)}"`:""}>${l.espor?"esporádica":cobTxt(l.cob)}${l.picos.length?' <b aria-label="teve pico">⚡</b>':""}</span>`; }
 const cobCls=c=>c===null?"tag-off":c<15?"tag-warn":c>90?"tag-err":"tag-ok";
 
 function gEstoque(){
@@ -865,11 +874,11 @@ function gEstoque(){
   const qs=(DB.mlQ||"").trim().toLowerCase();
   let lst=m.ativos.filter(l=>!qs||[l.inv,l.titulo,l.cod,nomeCod(l.cod),l.sku].join(" ").toLowerCase().includes(qs));
   const ord=DB.mlOrd||"cob";
-  lst.sort((a,b)=>ord==="custo"?(b.custoDisp||0)-(a.custoDisp||0):ord==="vend"?b.vend-a.vend:ord==="disp"?b.disponivel-a.disponivel:((a.cob??1e9)-(b.cob??1e9)));
+  lst.sort((a,b)=>ord==="custo"?(b.custoDisp||0)-(a.custoDisp||0):ord==="vend"?b.vend-a.vend:ord==="disp"?b.disponivel-a.disponivel:(((a.espor?1e8:0)+(a.cob??1e9))-((b.espor?1e8:0)+(b.cob??1e9))));
   const porModelo=DB.mlModelo;
   let corpo;
   if(porModelo){
-    const g=new Map(); lst.forEach(l=>{ const k=l.cod||"—"; const x=g.get(k)||{cod:l.cod,an:[],pecas:0,custo:0,vend:0}; x.an.push(l); x.pecas+=l.pecas; x.custo+=l.custoDisp||0; x.vend+=l.vend*l.mult; g.set(k,x); });
+    const g=new Map(); lst.forEach(l=>{ const k=l.cod||"—"; const x=g.get(k)||{cod:l.cod,an:[],pecas:0,custo:0,vend:0}; x.an.push(l); x.pecas+=l.pecas; x.custo+=l.custoDisp||0; x.vend+=l.vendTip*l.mult; g.set(k,x); });
     const gs=[...g.values()].sort((a,b)=>b.custo-a.custo); const P=pager("mlm",gs.length,15);
     corpo=`<div class="tbl"><table class="t"><thead><tr><th>Modelo</th><th class="r">Anúncios</th><th class="r">Peças disponíveis</th><th class="r">Custo</th><th class="r">Peças vendidas</th><th class="r">Cobertura</th></tr></thead><tbody>
       ${gs.slice(P.ini,P.fim).map(x=>{ const md=x.vend/dias, cob=md>0?x.pecas/md:null; return `<tr><td>${x.cod?`<b>${x.cod}</b> · ${esc(nomeCod(x.cod))}`:`<span class="tag tag-warn">sem vínculo</span>`}<div class="t2">${x.an.map(a=>`${esc(a.inv)} (${a.mult} un)`).join(" · ")}</div></td>
@@ -881,7 +890,7 @@ function gEstoque(){
       ${lst.slice(P.ini,P.fim).map(l=>`<tr class="mlrow ${DB.mlInv===l.inv?"open":""}" data-act="ml-hist" data-inv="${esc(l.inv)}" tabindex="0"><td><span class="mono">${esc(l.inv)}</span><div class="t2 mltit">${esc(l.titulo||"")}</div></td>
           <td>${l.cod?`${l.cod} · ${esc(nomeCod(l.cod))}`:`<div class="combo"><input class="inp" data-vq="${esc(l.inv)}" value="" placeholder="Vincular produto do ERP…" autocomplete="off" role="combobox" aria-expanded="false" aria-label="Produto ERP de ${esc(l.inv)}"><div class="clist" hidden></div></div>${l.sku?`<span class="t2">SKU no anúncio: ${esc(l.sku)}</span>`:""}`}</td>
           <td class="r num">${l.mult} un</td><td class="r num">${n0(l.disponivel)}</td><td class="r num">${l.indisponivel?`<span title="${esc((l.detalhe||[]).map(d=>`${d.status}: ${d.quantity}`).join(", "))}">${n0(l.indisponivel)}</span>`:"—"}</td>
-          <td class="r num">${l.cu===null?`<span class="t2">sem custo</span>`:BRL(l.custoDisp)}</td><td class="r num">${n0(l.vend)}</td><td class="r"><span class="tag ${cobCls(l.cob)}">${cobTxt(l.cob)}</span></td></tr>
+          <td class="r num">${l.cu===null?`<span class="t2">sem custo</span>`:BRL(l.custoDisp)}</td><td class="r num">${n0(l.vend)}</td><td class="r">${cobCel(l)}</td></tr>
           ${DB.mlInv===l.inv?`<tr class="mlhist"><td colspan="8">${mlHistHtml(l)}</td></tr>`:""}`).join("")||`<tr><td colspan="8" class="muted">${m.ativos.length?"Nada encontrado.":"Nenhum anúncio com estoque no Full. Clique em Sincronizar agora."}</td></tr>`}
       </tbody></table></div>${P.html}`;
   }
@@ -892,7 +901,7 @@ function gEstoque(){
       ${card(BRL(m.custoDisp),"custo disponível no Full",m.custoTot>m.custoDisp?`${BRL(m.custoTot)} com indisponíveis`:"")}
       ${card(n0(m.modelos),"modelos",`${n0(m.ativos.length)} anúncios`)}
       ${card(n0(m.pecas),"peças disponíveis",`${n0(m.unid)} unidades/kits${m.indisp?` · ${n0(m.indisp)} indisp.`:""}`)}
-      ${card(m.cobMedia===null?"—":cobTxt(m.cobMedia),"cobertura média",`vendas dos últimos ${dias} dias`)}
+      ${card(m.cobMedia===null?"—":cobTxt(m.cobMedia),"cobertura média",`vendas dos últimos ${dias} dias${mlTeto()?` · picos acima de ${mlTeto()}× cortados`:""}`)}
     </div>
     <div class="sumrow">
       ${card(n0(m.ent),"entradas de abastecimento",`envios ao Full nos últimos ${dias} dias`)}${card(n0(m.dev),"unidades/kits devolvidos",`${c.devVendas!=null?`${n0(c.devVendas)} venda${c.devVendas===1?"":"s"} devolvida${c.devVendas===1?"":"s"} · `:""}${n0(m.devPecas)} peças · últimos ${dias} dias`)}${card(n0(m.vend),"vendas","unidades/kits")}
@@ -903,6 +912,7 @@ function gEstoque(){
       ${DB.mlCustom?`<form id="mlDiasF" class="mldias"><input class="inp" id="mlDias" type="number" min="1" max="365" value="${dias}" aria-label="Dias"><button class="btn btn-sm" type="submit">Aplicar</button></form>`:""}</div>
       <div class="fbar"><div class="seg" role="group" aria-label="Visão"><button aria-pressed="${!porModelo}" data-act="ml-visao" data-v="an">Por anúncio</button><button aria-pressed="${!!porModelo}" data-act="ml-visao" data-v="mod">Por modelo</button></div>
       ${porModelo?"":`<label class="muted">Ordenar por <select class="inp mlord" id="mlOrd">${[["cob","menor cobertura"],["custo","maior custo"],["vend","mais vendidos"],["disp","mais estoque"]].map(([k,t])=>`<option value="${k}" ${ord===k?"selected":""}>${t}</option>`).join("")}</select></label>`}
+      <label class="muted">Pico: venda acima de <select class="inp mlord" id="mlTeto">${[[2,"2×"],[3,"3×"],[4,"4×"],[5,"5×"],[0,"sem corte"]].map(([k,t])=>`<option value="${k}" ${mlTeto()===k?"selected":""}>${t}</option>`).join("")}</select> o normal</label>
       <span class="muted">${c.custos?.length?`Custos: ${n0(c.custos.length)} SKUs${c.custos_em?` (${new Date(c.custos_em).toLocaleDateString("pt-BR")})`:""}`:"Suba a planilha de custos"}</span></div>
       ${corpo}</div>`;
 }
@@ -1376,6 +1386,7 @@ document.addEventListener("change",ev=>{ const t=ev.target;
   else if(t.id==="fCusto"){ lerCustos(t); }
   else if(t.id==="verTodos"){ DB.verTodos=t.checked; render(); }
   else if(t.id==="mlOrd"){ DB.mlOrd=t.value; render(); }
+  else if(t.id==="mlTeto"){ DB.mlTeto=+t.value; try{ localStorage.setItem("envio-full-teto",t.value); }catch(e){} render(); }
   else if(t.id==="fEtq"||t.id==="fPdf"){ lerArquivos(t); }
   else if(t.id==="fUpEtq"||t.id==="fUpPdf"){ atualizarEnvio(t); }
   else if(t.id==="fde"||t.id==="fate"){ DB.f[t.id==="fde"?"de":"ate"]=t.value; DB.pg.envios=1; $("#elist").innerHTML=gEnviosList(); }
