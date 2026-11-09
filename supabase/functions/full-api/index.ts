@@ -353,13 +353,14 @@ Deno.serve(async (req) => {
         must(gestor && !me.qrEnvio, "Só o gestor vê o estoque do Full.");
         const dias = Math.min(365, Math.max(1, +b.dias || 30));
         const desde = new Date(Date.now() - dias * 86400000).toISOString();
-        const [a, est, res, cus] = await Promise.all([
+        const [a, est, res, cus, devV] = await Promise.all([
           mlAuth(), todas((x, y) => db.from("full_ml_estoque").select("inv,item_id,titulo,sku,status,total,disponivel,indisponivel,detalhe,updated_at").order("inv").range(x, y)),
           q(db.rpc("full_ml_resumo_json", { p_desde: desde })), todas((x, y) => db.from("full_custo").select("cod,custo,updated_at").order("cod").range(x, y)),
+          q(db.rpc("full_ml_devol_vendas", { p_desde: desde })),
         ]);
         const cu = a?.ops_cursor; const carga = cu ? new Date(new Date(cu.fim).getTime() - (cu.w || 0) * 30 * 86400000).toISOString() : null;
         return out({ carga, conectado: mlLigado(a), offline: !!a?.refresh_token, expira: a?.expira || null, nick: a?.nick || "", ultima_sync: a?.ultima_sync || null, msg: a?.msg || null, client_id: ML_ID, redirect: ML_REDIR,
-          dias, estoque: est, resumo: res, custos: cus, custos_em: cus.reduce((m: string, c: any) => (c.updated_at > m ? c.updated_at : m), "") });
+          dias, estoque: est, resumo: res, devVendas: devV, custos: cus, custos_em: cus.reduce((m: string, c: any) => (c.updated_at > m ? c.updated_at : m), "") });
       }
       case "ml_hist": {
         must(gestor && !me.qrEnvio, "Só o gestor vê o histórico.");

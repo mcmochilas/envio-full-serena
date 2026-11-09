@@ -42,7 +42,7 @@ function mlCalc(){ const c=DB.ml||{}, dias=c.dias||30; const custo={}; (c.custos
     custoDisp:ativos.reduce((t,l)=>t+(l.custoDisp||0),0), custoTot:ativos.reduce((t,l)=>t+(l.custoTot||0),0),
     semCusto:ativos.filter(l=>l.cu===null).length, semVinc:ativos.filter(l=>!l.cod).length, semVenda:ativos.filter(l=>l.cob===null&&l.disponivel>0).length,
     pecas:ativos.reduce((t,l)=>t+l.pecas,0), unid:ativos.reduce((t,l)=>t+l.disponivel,0), indisp:ativos.reduce((t,l)=>t+l.indisponivel,0),
-    ent:linhas.reduce((t,l)=>t+l.ent,0), dev:linhas.reduce((t,l)=>t+l.dev,0), vend:linhas.reduce((t,l)=>t+l.vend,0)}; }
+    ent:linhas.reduce((t,l)=>t+l.ent,0), dev:linhas.reduce((t,l)=>t+l.dev,0), devPecas:linhas.reduce((t,l)=>t+l.dev*l.mult,0), vend:linhas.reduce((t,l)=>t+l.vend,0)}; }
 
 const cobTxt=c=>c===null?"sem venda":c>=999?"999+ dias":`${Math.round(c)} dia${Math.round(c)===1?"":"s"}`;
 const cobCls=c=>c===null?"tag-off":c<15?"tag-warn":c>90?"tag-err":"tag-ok";
@@ -97,7 +97,7 @@ function gEstoque(){
       ${card(m.cobMedia===null?"—":cobTxt(m.cobMedia),"cobertura média",`vendas dos últimos ${dias} dias`)}
     </div>
     <div class="sumrow">
-      ${card(n0(m.ent),"entradas de abastecimento",`envios ao Full nos últimos ${dias} dias`)}${card(n0(m.dev),"devoluções",`voltaram ao Full nos últimos ${dias} dias`)}${card(n0(m.vend),"vendas","unidades/kits")}
+      ${card(n0(m.ent),"entradas de abastecimento",`envios ao Full nos últimos ${dias} dias`)}${card(n0(m.dev),"unidades/kits devolvidos",`${c.devVendas!=null?`${n0(c.devVendas)} venda${c.devVendas===1?"":"s"} devolvida${c.devVendas===1?"":"s"} · `:""}${n0(m.devPecas)} peças · últimos ${dias} dias`)}${card(n0(m.vend),"vendas","unidades/kits")}
     </div>
     ${m.semVinc||m.semCusto?`<div class="lmsg">${m.semVinc?`${m.semVinc} anúncio${m.semVinc>1?"s":""} sem vínculo com produto do ERP (aba Vínculos). `:""}${m.semCusto?`${m.semCusto} anúncio${m.semCusto>1?"s":""} sem custo na planilha: ficam fora do custo total.`:""}</div>`:""}
     <div class="panel"><div class="fbar"><div class="busca2"><span aria-hidden="true">${LUPA}</span><input class="inp" id="mlQ" placeholder="Buscar anúncio, título, SKU ou modelo" value="${esc(DB.mlQ||"")}" aria-label="Buscar no estoque"></div>
