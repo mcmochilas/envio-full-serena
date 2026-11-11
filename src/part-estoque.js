@@ -66,6 +66,7 @@ function cobCel(l){
   return `<span class="ctw" tabindex="0"><span class="tag ${l.espor?"tag-off":cobCls(l.cob)}">${l.espor?"esporádica":cobTxt(l.cob)}${l.picos.length?' <b aria-label="teve pico">⚡</b>':""}</span><span class="ctip" role="tooltip">${tab}</span></span>`; }
 const cobCls=c=>c===null?"tag-off":c<15?"tag-warn":c>90?"tag-err":"tag-ok";
 
+const ICO_XLS=`<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 9h18M3 15h18M9 3v18" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="3" width="18" height="6" rx="2.5" fill="#1D7A46" opacity=".9"/><path d="M3 9h18" stroke="currentColor" stroke-width="1.6"/></svg>`;
 /* lista filtrada e ordenada (mesma da tela) e agrupamento por modelo */
 function mlLista(m){
   const qs=(DB.mlQ||"").trim().toLowerCase();
@@ -107,7 +108,7 @@ function gEstoque(){
   const hdr=`<div class="hdr"><div><span class="eyebrow">Mercado Livre · Full</span><h1>Estoque no Full</h1>
       ${c.conectado?`<span class="muted">Conta ${esc(c.nick||"conectada")} · ${c.ultima_sync?`sincronizado ${new Date(c.ultima_sync).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"})}`:"ainda não sincronizado"}</span>`:""}</div>
     <div class="acts">${c.conectado?`<button class="btn" data-act="ml-sync" ${DB.mlSync?"disabled":""}>${DB.mlSync?"Sincronizando…":"Sincronizar agora"}</button>`:""}
-      <button class="btn" data-act="ml-custos">Subir custos (.xlsx/.csv)</button>${c.conectado?`<button class="btn" data-act="ml-baixar" title="Baixa a visão atual (por anúncio ou por modelo) com todas as linhas">Baixar planilha</button>`:""}</div></div>`;
+      <button class="btn" data-act="ml-custos">Subir custos (.xlsx/.csv)</button></div></div>`;
   if(DB.mlErro) return hdr+`<div class="lmsg err">${esc(DB.mlErro)}</div><button class="btn" data-act="ml-recarregar">Tentar de novo</button>`;
   if(!c.conectado) return hdr+`<div class="panel mlcon"><h3>Conecte a conta do Mercado Livre</h3>
       <p class="muted">O painel lê pela API do Mercado Livre o estoque de cada anúncio no Full e as movimentações: entradas, devoluções, vendas e ajustes. É só leitura: nada é alterado na sua conta.</p>
@@ -154,6 +155,7 @@ function gEstoque(){
       <div class="seg per" role="group" aria-label="Período da média de vendas">${per}</div>
       ${DB.mlCustom?`<form id="mlDiasF" class="mldias"><input class="inp" id="mlDias" type="number" min="1" max="365" value="${dias}" aria-label="Dias"><button class="btn btn-sm" type="submit">Aplicar</button></form>`:""}</div>
       <div class="fbar"><div class="seg" role="group" aria-label="Visão"><button aria-pressed="${!porModelo}" data-act="ml-visao" data-v="an">Por anúncio</button><button aria-pressed="${!!porModelo}" data-act="ml-visao" data-v="mod">Por modelo</button></div>
+      <button class="btn btn-sm mlxls" data-act="ml-baixar" title="Baixa a visão atual (${porModelo?"por modelo":"por anúncio"}) com todas as linhas">${ICO_XLS}Baixar planilha</button>
       ${porModelo?"":`<label class="muted">Ordenar por <select class="inp mlord" id="mlOrd">${[["cob","menor cobertura"],["custo","maior custo"],["vend","mais vendidos"],["disp","mais estoque"]].map(([k,t])=>`<option value="${k}" ${ord===k?"selected":""}>${t}</option>`).join("")}</select></label>`}
       <label class="muted">Pico: venda acima de <select class="inp mlord" id="mlTeto">${[[2,"2×"],[3,"3×"],[4,"4×"],[5,"5×"],[0,"sem corte"]].map(([k,t])=>`<option value="${k}" ${mlTeto()===k?"selected":""}>${t}</option>`).join("")}</select> o normal</label>
       <span class="muted">${c.custos?.length?`Custos: ${n0(c.custos.length)} SKUs${c.custos_em?` (${new Date(c.custos_em).toLocaleDateString("pt-BR")})`:""}`:"Suba a planilha de custos"}</span></div>

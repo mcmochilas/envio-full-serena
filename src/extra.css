@@ -219,3 +219,6 @@ body.comscan #toast{bottom:96px}
 .ctt .ctpk td{color:var(--warn)}
 .ctt .cttot th,.ctt .cttot td{background:var(--accent-soft)}
 .ctnota{margin-top:6px;font-size:12px;color:var(--t2,#5b6b74);white-space:normal;max-width:300px}
+
+.mlxls{display:inline-flex;align-items:center;gap:6px;margin-left:8px}
+.mlxls svg{color:#1D7A46}
