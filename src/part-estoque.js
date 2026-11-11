@@ -66,13 +66,48 @@ function cobCel(l){
   return `<span class="ctw" tabindex="0"><span class="tag ${l.espor?"tag-off":cobCls(l.cob)}">${l.espor?"esporádica":cobTxt(l.cob)}${l.picos.length?' <b aria-label="teve pico">⚡</b>':""}</span><span class="ctip" role="tooltip">${tab}</span></span>`; }
 const cobCls=c=>c===null?"tag-off":c<15?"tag-warn":c>90?"tag-err":"tag-ok";
 
+/* lista filtrada e ordenada (mesma da tela) e agrupamento por modelo */
+function mlLista(m){
+  const qs=(DB.mlQ||"").trim().toLowerCase();
+  const lst=m.ativos.filter(l=>!qs||[l.inv,l.titulo,l.cod,nomeCod(l.cod),l.sku].join(" ").toLowerCase().includes(qs));
+  const ord=DB.mlOrd||"cob";
+  lst.sort((a,b)=>ord==="custo"?(b.custoDisp||0)-(a.custoDisp||0):ord==="vend"?b.vend-a.vend:ord==="disp"?b.disponivel-a.disponivel:(((a.espor?1e8:0)+(a.cob??1e9))-((b.espor?1e8:0)+(b.cob??1e9))));
+  const g=new Map(); lst.forEach(l=>{ const k=l.cod||"—"; const x=g.get(k)||{cod:l.cod,an:[],pecas:0,pecasTot:0,custo:0,custoTot:0,vend:0,vendBruta:0,cu:l.cu}; x.an.push(l); x.pecas+=l.pecas; x.pecasTot+=l.total*l.mult; x.custo+=l.custoDisp||0; x.custoTot+=l.custoTot||0; x.vend+=l.vendTip*l.mult; x.vendBruta+=l.vend*l.mult; g.set(k,x); });
+  const gs=[...g.values()].sort((a,b)=>b.custo-a.custo);
+  return {lst,gs}; }
+const xlsxPronto=()=>window.XLSX?Promise.resolve():new Promise((ok,er)=>{ const sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; sc.onload=ok; sc.onerror=()=>er(new Error("leitor de planilha não carregou")); document.head.appendChild(sc); });
+/* baixa a planilha da visão atual (por anúncio ou por modelo), com todas as linhas e não só a página */
+async function mlBaixar(){
+  try{ await xlsxPronto();
+    const m=mlCalc(), dias=m.dias, {lst,gs}=mlLista(m), K=mlTeto();
+    const dd=v=>v===null||v===undefined?"":Math.round(v), r2=v=>v===null||v===undefined?"":Math.round(v*100)/100;
+    let linhas, nome;
+    if(DB.mlModelo){ nome="modelos";
+      linhas=gs.map(x=>{ const md=x.vend/dias; return {"Código ERP":x.cod||"","Produto":x.cod?nomeCod(x.cod):"sem vínculo","Anúncios":x.an.map(a=>a.inv).join(", "),"Qtd. anúncios":x.an.length,
+        "Peças disponíveis":x.pecas,"Peças no Full (com indisp.)":x.pecasTot,"Custo unitário":x.cu??"","Custo disponível":r2(x.custo),"Custo com indisponíveis":r2(x.custoTot),
+        [`Peças vendidas (${dias} dias)`]:x.vendBruta,"Peças/dia (com corte)":r2(md),"Cobertura (dias)":md>0?dd(x.pecas/md):"sem venda"}; });
+    } else { nome="anuncios";
+      linhas=lst.map(l=>({"Anúncio (inventory)":l.inv,"Item ML":l.item_id||"","Título":l.titulo||"","SKU no anúncio":l.sku||"","Código ERP":l.cod||"","Produto ERP":l.cod?nomeCod(l.cod):"sem vínculo",
+        "Peças por kit":l.mult,"Disponível":l.disponivel,"Indisponível":l.indisponivel,"Total no Full":l.total,"Peças disponíveis":l.pecas,
+        "Custo unitário":l.cu??"","Custo disponível":r2(l.custoDisp),"Custo com indisponíveis":r2(l.custoTot),
+        [`Vendas (${dias} dias)`]:l.vend,"Nº de vendas":l.nVendas,"Venda típica":l.nVendas?l.tip:"",[`Teto de pico (${K||"sem corte"}${K?"×":""})`]:l.nVendas&&K?l.teto:"",
+        "Vendas acima do teto":l.picos.join(", "),"Vendas/dia (com corte)":r2(l.md),"Cobertura (dias)":l.espor?"esporádica":l.cob===null?"sem venda":dd(l.cob),"Cobertura sem corte (dias)":l.cobBruta===null?"":dd(l.cobBruta)}));
+    }
+    if(!linhas.length){ toast("Nada para baixar"); return; }
+    const ws=XLSX.utils.json_to_sheet(linhas);
+    ws["!cols"]=Object.keys(linhas[0]).map(k=>({wch:Math.min(60,Math.max(k.length,...linhas.slice(0,200).map(r=>String(r[k]??"").length))+2)}));
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,DB.mlModelo?"Por modelo":"Por anúncio");
+    XLSX.writeFile(wb,`estoque-full-${nome}-${new Date().toISOString().slice(0,10)}.xlsx`);
+    toast(`Planilha baixada · ${n0(linhas.length)} linhas`);
+  }catch(x){ toast(x.message); }
+}
 function gEstoque(){
   if(!DB.ml&&!DB.mlErro){ mlCarregar(); return `<div class="hdr"><div><span class="eyebrow">Mercado Livre · Full</span><h1>Estoque no Full</h1></div></div><div class="panel"><span class="muted">Carregando estoque…</span></div>`; }
   const c=DB.ml||{};
   const hdr=`<div class="hdr"><div><span class="eyebrow">Mercado Livre · Full</span><h1>Estoque no Full</h1>
       ${c.conectado?`<span class="muted">Conta ${esc(c.nick||"conectada")} · ${c.ultima_sync?`sincronizado ${new Date(c.ultima_sync).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"})}`:"ainda não sincronizado"}</span>`:""}</div>
     <div class="acts">${c.conectado?`<button class="btn" data-act="ml-sync" ${DB.mlSync?"disabled":""}>${DB.mlSync?"Sincronizando…":"Sincronizar agora"}</button>`:""}
-      <button class="btn" data-act="ml-custos">Subir custos (.xlsx/.csv)</button></div></div>`;
+      <button class="btn" data-act="ml-custos">Subir custos (.xlsx/.csv)</button>${c.conectado?`<button class="btn" data-act="ml-baixar" title="Baixa a visão atual (por anúncio ou por modelo) com todas as linhas">Baixar planilha</button>`:""}</div></div>`;
   if(DB.mlErro) return hdr+`<div class="lmsg err">${esc(DB.mlErro)}</div><button class="btn" data-act="ml-recarregar">Tentar de novo</button>`;
   if(!c.conectado) return hdr+`<div class="panel mlcon"><h3>Conecte a conta do Mercado Livre</h3>
       <p class="muted">O painel lê pela API do Mercado Livre o estoque de cada anúncio no Full e as movimentações: entradas, devoluções, vendas e ajustes. É só leitura: nada é alterado na sua conta.</p>
@@ -83,15 +118,11 @@ function gEstoque(){
   const per=[15,30,60,90].map(d=>`<button aria-pressed="${dias===d&&!DB.mlCustom}" data-act="ml-dias" data-d="${d}">${d} dias</button>`).join("")
     +`<button aria-pressed="${!!DB.mlCustom}" data-act="ml-dias" data-d="custom">Personalizado</button>`;
   const card=(v,l,s)=>`<div class="sum"><b class="num">${v}</b><span>${l}</span>${s?`<small class="t2">${s}</small>`:""}</div>`;
-  const qs=(DB.mlQ||"").trim().toLowerCase();
-  let lst=m.ativos.filter(l=>!qs||[l.inv,l.titulo,l.cod,nomeCod(l.cod),l.sku].join(" ").toLowerCase().includes(qs));
-  const ord=DB.mlOrd||"cob";
-  lst.sort((a,b)=>ord==="custo"?(b.custoDisp||0)-(a.custoDisp||0):ord==="vend"?b.vend-a.vend:ord==="disp"?b.disponivel-a.disponivel:(((a.espor?1e8:0)+(a.cob??1e9))-((b.espor?1e8:0)+(b.cob??1e9))));
+  const {lst,gs}=mlLista(m); const ord=DB.mlOrd||"cob";
   const porModelo=DB.mlModelo;
   let corpo;
   if(porModelo){
-    const g=new Map(); lst.forEach(l=>{ const k=l.cod||"—"; const x=g.get(k)||{cod:l.cod,an:[],pecas:0,custo:0,vend:0}; x.an.push(l); x.pecas+=l.pecas; x.custo+=l.custoDisp||0; x.vend+=l.vendTip*l.mult; g.set(k,x); });
-    const gs=[...g.values()].sort((a,b)=>b.custo-a.custo); const P=pager("mlm",gs.length,15);
+    const P=pager("mlm",gs.length,15);
     corpo=`<div class="tbl"><table class="t"><thead><tr><th>Modelo</th><th class="r">Anúncios</th><th class="r">Peças disponíveis</th><th class="r">Custo</th><th class="r">Peças vendidas</th><th class="r">Cobertura <button class="hbtn hbtn-s" data-act="ajuda-cob" title="Como a cobertura é calculada" aria-label="Como a cobertura é calculada">!</button></th></tr></thead><tbody>
       ${gs.slice(P.ini,P.fim).map(x=>{ const md=x.vend/dias, cob=md>0?x.pecas/md:null; return `<tr><td>${x.cod?`<b>${x.cod}</b> · ${esc(nomeCod(x.cod))}`:`<span class="tag tag-warn">sem vínculo</span>`}<div class="t2">${x.an.map(a=>`${esc(a.inv)} (${a.mult} un)`).join(" · ")}</div></td>
         <td class="r num">${x.an.length}</td><td class="r num">${n0(x.pecas)}</td><td class="r num">${x.custo?BRL(x.custo):"—"}</td><td class="r num">${n0(x.vend)}</td><td class="r"><span class="tag ${cobCls(cob)}">${cobTxt(cob)}</span></td></tr>`; }).join("")||`<tr><td colspan="6" class="muted">Nada encontrado.</td></tr>`}
@@ -153,7 +184,7 @@ async function lerCustos(input){ const f=input.files[0]; input.value=""; if(!f) 
   try{ let rows;
     if(/\.csv$/i.test(f.name)){ const t=await f.text(); const sep=(t.split("\n")[0].match(/;/g)||[]).length>(t.split("\n")[0].match(/,/g)||[]).length?";":",";
       rows=t.split(/\r?\n/).filter(Boolean).map(l=>l.split(sep).map(x=>x.replace(/^"|"$/g,"").trim())); }
-    else { if(!window.XLSX) await new Promise((ok,er)=>{ const sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; sc.onload=ok; sc.onerror=()=>er(new Error("leitor de planilha não carregou")); document.head.appendChild(sc); }); const wb=XLSX.read(await f.arrayBuffer(),{type:"array"}); rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true}); }
+    else { await xlsxPronto(); const wb=XLSX.read(await f.arrayBuffer(),{type:"array"}); rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true}); }
     const h=(rows[0]||[]).map(x=>String(x||"").toLowerCase());
     const iS=h.findIndex(x=>/sku|c[oó]d/.test(x)), iC=h.findIndex(x=>/custo|pre[cç]o/.test(x)), iD=h.findIndex(x=>/descri/.test(x));
     if(iS<0||iC<0) throw new Error("não achei as colunas SKU e Custo");

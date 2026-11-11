@@ -119,6 +119,7 @@ document.addEventListener("click",ev=>{
     case "ml-conectar": mlConectar(); return;
     case "ml-recarregar": DB.mlErro=null; DB.ml=null; break;
     case "lblfim": if(e) lblFinaliza(e,b.dataset.cod); break;
+    case "ml-baixar": mlBaixar(); return;
     case "ml-custos": document.getElementById("fCusto").click(); return;
     case "ml-sync": DB.mlSync=true; render(); api("ml_sync",{}).then(r=>toast(`Sincronizado · ${r.anuncios} anúncios`)).catch(x=>toast(x.message)).finally(async()=>{ DB.mlSync=false; await mlCarregar(); }); return;
     case "ml-dias": if(b.dataset.d==="custom"){ DB.mlCustom=true; break; } DB.mlCustom=false; DB.mlDias=+b.dataset.d; DB.pg.mla=1; mlCarregar(); break;
