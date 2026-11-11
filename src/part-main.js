@@ -202,6 +202,7 @@ document.addEventListener("change",ev=>{ const t=ev.target;
   else if(t.id==="fCusto"){ lerCustos(t); }
   else if(t.id==="verTodos"){ DB.verTodos=t.checked; render(); }
   else if(t.id==="mlOrd"){ DB.mlOrd=t.value; render(); }
+  else if(t.id==="mlZer"){ DB.mlZer=t.checked; try{ localStorage.setItem("envio-full-zerados",t.checked?"1":"0"); }catch(e){} render(); }
   else if(t.id==="mlTeto"){ DB.mlTeto=+t.value; try{ localStorage.setItem("envio-full-teto",t.value); }catch(e){} render(); }
   else if(t.id==="fEtq"||t.id==="fPdf"){ lerArquivos(t); }
   else if(t.id==="fUpEtq"||t.id==="fUpPdf"){ atualizarEnvio(t); }

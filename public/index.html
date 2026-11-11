@@ -369,6 +369,7 @@ body.comscan #toast{bottom:96px}
 .mlxls{display:inline-flex;align-items:center;gap:6px;margin-left:8px}
 .mlxls svg{color:#1D7A46}
 .mlvis{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.mlvis .mlxls{margin-left:0}
+.mlzer{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 </style>
 
 </head>
@@ -884,14 +885,17 @@ function cobCel(l){
     ${lin("Cobertura",`<b>${cobTxt(l.cob)}</b>`,"cttot")}
     ${l.picos.length?lin("Cobertura sem corte",cobTxt(l.cobBruta)):""}
   </tbody></table>${l.espor?`<div class="ctnota">Venda esporádica: só ${l.nVendas} venda${l.nVendas>1?"s":""} no período, projeção pouco confiável.</div>`:""}`;
+  if(!l.total) return `<span class="tag tag-err" title="Sem estoque no Full${l.nVendas?` · ${n0(l.vend)} un vendidas no período`:""}">zerado</span>`;
   return `<span class="ctw" tabindex="0"><span class="tag ${l.espor?"tag-off":cobCls(l.cob)}">${l.espor?"esporádica":cobTxt(l.cob)}${l.picos.length?' <b aria-label="teve pico">⚡</b>':""}</span><span class="ctip" role="tooltip">${tab}</span></span>`; }
 const cobCls=c=>c===null?"tag-off":c<15?"tag-warn":c>90?"tag-err":"tag-ok";
 
+/* mostrar anúncios do Full com estoque zerado (os que acabaram e precisam de reposição) */
+const mlZer=()=>{ if(DB.mlZer===undefined){ try{ DB.mlZer=localStorage.getItem("envio-full-zerados")==="1"; }catch(e){ DB.mlZer=false; } } return DB.mlZer; };
 const ICO_XLS=`<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 9h18M3 15h18M9 3v18" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="3" width="18" height="6" rx="2.5" fill="#1D7A46" opacity=".9"/><path d="M3 9h18" stroke="currentColor" stroke-width="1.6"/></svg>`;
 /* lista filtrada e ordenada (mesma da tela) e agrupamento por modelo */
 function mlLista(m){
   const qs=(DB.mlQ||"").trim().toLowerCase();
-  const lst=m.ativos.filter(l=>!qs||[l.inv,l.titulo,l.cod,nomeCod(l.cod),l.sku].join(" ").toLowerCase().includes(qs));
+  const lst=(mlZer()?m.linhas:m.ativos).filter(l=>!qs||[l.inv,l.titulo,l.cod,nomeCod(l.cod),l.sku].join(" ").toLowerCase().includes(qs));
   const ord=DB.mlOrd||"cob";
   lst.sort((a,b)=>ord==="custo"?(b.custoDisp||0)-(a.custoDisp||0):ord==="vend"?b.vend-a.vend:ord==="disp"?b.disponivel-a.disponivel:(((a.espor?1e8:0)+(a.cob??1e9))-((b.espor?1e8:0)+(b.cob??1e9))));
   const g=new Map(); lst.forEach(l=>{ const k=l.cod||"—"; const x=g.get(k)||{cod:l.cod,an:[],pecas:0,pecasTot:0,custo:0,custoTot:0,vend:0,vendBruta:0,cu:l.cu}; x.an.push(l); x.pecas+=l.pecas; x.pecasTot+=l.total*l.mult; x.custo+=l.custoDisp||0; x.custoTot+=l.custoTot||0; x.vend+=l.vendTip*l.mult; x.vendBruta+=l.vend*l.mult; g.set(k,x); });
@@ -978,6 +982,7 @@ function gEstoque(){
       <div class="fbar"><div class="mlvis"><div class="seg" role="group" aria-label="Visão"><button aria-pressed="${!porModelo}" data-act="ml-visao" data-v="an">Por anúncio</button><button aria-pressed="${!!porModelo}" data-act="ml-visao" data-v="mod">Por modelo</button></div>
       <button class="btn btn-sm mlxls" data-act="ml-baixar" title="Baixa a visão atual (${porModelo?"por modelo":"por anúncio"}) com todas as linhas">${ICO_XLS}Baixar planilha</button></div>
       ${porModelo?"":`<label class="muted">Ordenar por <select class="inp mlord" id="mlOrd">${[["cob","menor cobertura"],["custo","maior custo"],["vend","mais vendidos"],["disp","mais estoque"]].map(([k,t])=>`<option value="${k}" ${ord===k?"selected":""}>${t}</option>`).join("")}</select></label>`}
+      <label class="muted mlzer"><input type="checkbox" id="mlZer" ${mlZer()?"checked":""}> Mostrar zerados</label>
       <label class="muted">Pico: venda acima de <select class="inp mlord" id="mlTeto">${[[2,"2×"],[3,"3×"],[4,"4×"],[5,"5×"],[0,"sem corte"]].map(([k,t])=>`<option value="${k}" ${mlTeto()===k?"selected":""}>${t}</option>`).join("")}</select> o normal</label>
       <span class="muted">${c.custos?.length?`Custos: ${n0(c.custos.length)} SKUs${c.custos_em?` (${new Date(c.custos_em).toLocaleDateString("pt-BR")})`:""}`:"Suba a planilha de custos"}</span></div>
       ${corpo}</div>`;
@@ -1472,6 +1477,7 @@ document.addEventListener("change",ev=>{ const t=ev.target;
   else if(t.id==="fCusto"){ lerCustos(t); }
   else if(t.id==="verTodos"){ DB.verTodos=t.checked; render(); }
   else if(t.id==="mlOrd"){ DB.mlOrd=t.value; render(); }
+  else if(t.id==="mlZer"){ DB.mlZer=t.checked; try{ localStorage.setItem("envio-full-zerados",t.checked?"1":"0"); }catch(e){} render(); }
   else if(t.id==="mlTeto"){ DB.mlTeto=+t.value; try{ localStorage.setItem("envio-full-teto",t.value); }catch(e){} render(); }
   else if(t.id==="fEtq"||t.id==="fPdf"){ lerArquivos(t); }
   else if(t.id==="fUpEtq"||t.id==="fUpPdf"){ atualizarEnvio(t); }
